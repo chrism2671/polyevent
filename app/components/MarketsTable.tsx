@@ -87,6 +87,7 @@ export default function MarketsTable() {
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
 
   useEffect(() => {
     fetchAllMarkets((eventCount, marketCount) => {
@@ -97,6 +98,13 @@ export default function MarketsTable() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const filteredMarkets = useMemo(() => {
+    if (includeZeroVolume) {
+      return markets;
+    }
+    return markets.filter(m => (m.volume ?? 0) > 0);
+  }, [markets, includeZeroVolume]);
 
   const columns = useMemo<ColumnDef<PolymarketMarket>[]>(
     () => [
@@ -125,7 +133,7 @@ export default function MarketsTable() {
         accessorFn: (row) => row.lastTradePrice ?? 0,
         cell: (info) => {
           const price = info.getValue() as number;
-          return <div className="text-right">{(price * 100).toFixed(1)}¢</div>;
+          return <div className="text-right font-mono">{(price * 100).toFixed(1)}</div>;
         },
         sortingFn: 'basic',
         meta: { align: 'right' },
@@ -136,7 +144,7 @@ export default function MarketsTable() {
         accessorFn: (row) => row.bestBid ?? 0,
         cell: (info) => {
           const bid = info.getValue() as number;
-          return <div className="text-right">{(bid * 100).toFixed(1)}¢</div>;
+          return <div className="text-right font-mono">{(bid * 100).toFixed(1)}</div>;
         },
         sortingFn: 'basic',
         meta: { align: 'right' },
@@ -147,7 +155,18 @@ export default function MarketsTable() {
         accessorFn: (row) => row.bestAsk ?? 0,
         cell: (info) => {
           const ask = info.getValue() as number;
-          return <div className="text-right">{(ask * 100).toFixed(1)}¢</div>;
+          return <div className="text-right font-mono">{(ask * 100).toFixed(1)}</div>;
+        },
+        sortingFn: 'basic',
+        meta: { align: 'right' },
+      },
+      {
+        accessorKey: 'spread',
+        header: 'Spread',
+        accessorFn: (row) => (row.bestAsk ?? 0) - (row.bestBid ?? 0),
+        cell: (info) => {
+          const spread = info.getValue() as number;
+          return <div className="text-right font-mono">{(spread * 100).toFixed(1)}</div>;
         },
         sortingFn: 'basic',
         meta: { align: 'right' },
@@ -210,7 +229,7 @@ export default function MarketsTable() {
   );
 
   const table = useReactTable({
-    data: markets,
+    data: filteredMarkets,
     columns,
     state: {
       sorting,
@@ -253,7 +272,7 @@ export default function MarketsTable() {
     <div className="p-4">
       <div className="mb-3">
         <h1 className="text-2xl font-bold mb-2">Polymarket Markets</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-2">
           <input
             type="text"
             value={globalFilter ?? ''}
@@ -261,8 +280,17 @@ export default function MarketsTable() {
             placeholder="Search markets..."
             className="px-3 py-1.5 text-sm border border-gray-300 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeZeroVolume}
+              onChange={(e) => setIncludeZeroVolume(e.target.checked)}
+              className="cursor-pointer"
+            />
+            Include zero volume
+          </label>
           <span className="text-sm text-gray-600">
-            Showing {table.getFilteredRowModel().rows.length} of {markets.length} active markets
+            Showing {table.getFilteredRowModel().rows.length} of {filteredMarkets.length} markets
           </span>
         </div>
       </div>
