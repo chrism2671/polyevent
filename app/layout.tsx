@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
@@ -54,6 +55,20 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
+        <Script id="userbird-analytics" strategy="afterInteractive">
+          {`
+            (function() {
+              window.userbirdq = window.userbirdq || [];
+              window.USERBIRD_SITE_ID = 'GWCfbpDW';
+              var script = document.createElement('script');
+              script.defer = true;
+              script.setAttribute('data-site', window.USERBIRD_SITE_ID);
+              script.src = "https://cdn.userbird.com/analytics.min.js";
+              var currentScript = document.currentScript || document.getElementsByTagName('script')[0];
+              currentScript.parentNode.insertBefore(script, currentScript);
+            })();
+          `}
+        </Script>
         <DataProvider>
           <Navigation />
           {children}
