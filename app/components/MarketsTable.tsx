@@ -379,8 +379,8 @@ export default function MarketsTable() {
                                     <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Bids</div>
                                     <div className="space-y-0.5">
                                       {book.bids.slice(0, 5).map((bid, i) => (
-                                        <div key={i} className="flex justify-between text-xs">
-                                          <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toFixed(1)}¢</span>
+                                        <div key={i} className="flex justify-between text-xs font-mono">
+                                          <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toFixed(1)}</span>
                                           <span className="text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toFixed(2)}</span>
                                         </div>
                                       ))}
@@ -390,8 +390,8 @@ export default function MarketsTable() {
                                     <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Asks</div>
                                     <div className="space-y-0.5">
                                       {book.asks.slice(0, 5).map((ask, i) => (
-                                        <div key={i} className="flex justify-between text-xs">
-                                          <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toFixed(1)}¢</span>
+                                        <div key={i} className="flex justify-between text-xs font-mono">
+                                          <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toFixed(1)}</span>
                                           <span className="text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toFixed(2)}</span>
                                         </div>
                                       ))}
