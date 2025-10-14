@@ -3,6 +3,8 @@
 import { useAccount, useSignTypedData, useSwitchChain } from 'wagmi';
 import { polygon } from 'wagmi/chains';
 import { useState, useEffect, useRef } from 'react';
+import { RealTimeDataClient } from '@polymarket/real-time-data-client';
+import type { Message } from '@polymarket/real-time-data-client';
 
 interface ApiCredentials {
   apiKey: string;
@@ -17,17 +19,17 @@ export default function FillMonitor() {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [status, setStatus] = useState<string>('');
-  const wsRef = useRef<WebSocket | null>(null);
+  const clientRef = useRef<RealTimeDataClient | null>(null);
 
   useEffect(() => {
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
     }
 
-    // Cleanup WebSocket on unmount
+    // Cleanup client on unmount
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (clientRef.current) {
+        clientRef.current.disconnect();
       }
     };
   }, []);
@@ -115,20 +117,30 @@ export default function FillMonitor() {
 
       const credentials: ApiCredentials = await response.json();
 
-      setStatus('Connecting to WebSocket...');
+      setStatus('Connecting to real-time data...');
 
-      // Connect to Polymarket WebSocket
-      const ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws');
-      wsRef.current = ws;
+      // Create message handler for fill events
+      const onMessage = (message: Message) => {
+        console.log('Received message:', message);
 
-      ws.onopen = () => {
+        // Handle fill events
+        if (message.topic === 'clob_user' && message.type === 'trade') {
+          const payload = message.payload as any;
+          new Notification('Order Filled! 🎉', {
+            body: `Market: ${payload.market || 'Unknown'}\nPrice: ${payload.price || 'N/A'}\nSize: ${payload.size || 'N/A'}`,
+            icon: '/og-image.png',
+          });
+        }
+      };
+
+      // Create connect handler to subscribe
+      const onConnect = (client: RealTimeDataClient) => {
         setStatus('Subscribing to fill events...');
-        // Subscribe to user channel
-        ws.send(JSON.stringify({
+        client.subscribe({
           subscriptions: [
             {
               topic: 'clob_user',
-              type: '*',
+              type: 'trade',
               clob_auth: {
                 key: credentials.apiKey,
                 secret: credentials.secret,
@@ -136,38 +148,13 @@ export default function FillMonitor() {
               },
             },
           ],
-        }));
+        });
       };
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          // Handle fill events
-          if (data.event_type === 'trade' || data.type === 'FILL') {
-            new Notification('Order Filled! 🎉', {
-              body: `Market: ${data.market || 'Unknown'}\nPrice: ${data.price || 'N/A'}`,
-              icon: '/og-image.png',
-            });
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setStatus('Error: WebSocket connection failed');
-        setIsMonitoring(false);
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket closed');
-        if (isMonitoring) {
-          setStatus('Disconnected');
-          setIsMonitoring(false);
-        }
-      };
+      // Create and connect the client
+      const client = new RealTimeDataClient({ onMessage, onConnect });
+      clientRef.current = client;
+      client.connect();
 
       setIsMonitoring(true);
       setStatus('Monitoring active');
@@ -185,80 +172,64 @@ export default function FillMonitor() {
   };
 
   const stopMonitoring = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (clientRef.current) {
+      clientRef.current.disconnect();
+      clientRef.current = null;
     }
     setIsMonitoring(false);
     setStatus('Stopped');
   };
 
   if (!isConnected) {
-    return (
-      <div className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
-        <h3 className="text-lg font-semibold mb-2 dark:text-gray-200">Fill Monitor</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Connect your wallet to receive browser notifications when your orders are filled.
-        </p>
-        <p className="text-sm text-gray-500 dark:text-gray-500">
-          Please connect your wallet to use this feature.
-        </p>
-      </div>
-    );
+    return null; // Don't show if wallet not connected
   }
 
   return (
-    <div className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
-      <h3 className="text-lg font-semibold mb-2 dark:text-gray-200">Fill Monitor</h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Get instant browser notifications when your orders are filled.
-      </p>
-
-      <div className="space-y-2">
-        <div className="text-sm text-gray-700 dark:text-gray-300">
-          Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+      <div className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 shadow-lg">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold dark:text-gray-200">Fill Monitor</h3>
+          {isMonitoring && (
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+          )}
         </div>
 
-        {chain && (
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            Network: {chain.name} {chain.id !== polygon.id && <span className="text-yellow-600 dark:text-yellow-400">(will switch to Polygon)</span>}
-          </div>
-        )}
-
-        {notificationPermission === 'denied' && (
-          <div className="text-sm text-red-600 dark:text-red-400">
-            ⚠️ Notification permission denied. Please enable notifications in your browser settings.
-          </div>
-        )}
-
-        {status && (
-          <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-            Status: {status}
-          </div>
-        )}
-
-        {isMonitoring ? (
-          <div className="space-y-2">
-            <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              {status || 'Monitoring active'}
+        <div className="space-y-2 text-xs">
+          {chain && chain.id !== polygon.id && (
+            <div className="text-yellow-600 dark:text-yellow-400">
+              ⚠️ Will switch to Polygon
             </div>
+          )}
+
+          {notificationPermission === 'denied' && (
+            <div className="text-red-600 dark:text-red-400">
+              ⚠️ Enable notifications
+            </div>
+          )}
+
+          {status && (
+            <div className="text-gray-700 dark:text-gray-300">
+              {status}
+            </div>
+          )}
+
+          {isMonitoring ? (
             <button
               onClick={stopMonitoring}
-              className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              className="w-full px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
             >
-              Stop Monitoring
+              Stop Monitor
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={startMonitoring}
-            disabled={!!status && status.includes('Error')}
-            className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Start Fill Monitor
-          </button>
-        )}
+          ) : (
+            <button
+              onClick={startMonitoring}
+              disabled={!!status && status.includes('Error')}
+              className="w-full px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Start Monitor
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

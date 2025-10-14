@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
+import FillMonitor from "./components/FillMonitor";
 import { DataProvider } from "./components/DataProvider";
 import { WalletProvider } from "./components/WalletProvider";
 
@@ -73,6 +74,7 @@ export default function RootLayout({
         <WalletProvider>
           <DataProvider>
             <Navigation />
+            <FillMonitor />
             {children}
             <Footer />
           </DataProvider>
