@@ -20,7 +20,7 @@ interface Tag {
 interface Market {
   id: string;
   question: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface PolymarketEvent {
@@ -47,7 +47,7 @@ interface PolymarketEvent {
   featured: boolean;
   restricted: boolean;
   tags: Tag[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 async function fetchAllEvents(
@@ -106,7 +106,7 @@ export default function EventsTable() {
         accessorKey: 'ticker',
         header: 'Ticker',
         cell: (info) => {
-          const ticker = info.getValue();
+          const ticker = info.getValue() as string | null | undefined;
           const slug = info.row.original.slug;
           if (!ticker) return '-';
           return (
@@ -144,7 +144,7 @@ export default function EventsTable() {
         accessorKey: 'markets',
         header: 'Markets',
         accessorFn: (row) => row.markets?.length ?? 0,
-        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        cell: (info) => <div className="text-right">{info.getValue() as number}</div>,
         sortingFn: 'basic',
         meta: { align: 'right' },
       },
@@ -240,7 +240,7 @@ export default function EventsTable() {
         accessorKey: 'commentCount',
         header: 'Comments',
         accessorFn: (row) => row.commentCount ?? 0,
-        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        cell: (info) => <div className="text-right">{info.getValue() as number}</div>,
         sortingFn: 'basic',
         meta: { align: 'right' },
       },
@@ -282,7 +282,7 @@ export default function EventsTable() {
       {
         accessorKey: 'id',
         header: 'ID',
-        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        cell: (info) => <div className="text-right">{info.getValue() as string}</div>,
         sortingFn: 'alphanumeric',
         meta: { align: 'right' },
       },
@@ -349,7 +349,7 @@ export default function EventsTable() {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
-                  const align = (header.column.columnDef.meta as any)?.align;
+                  const align = (header.column.columnDef.meta as { align?: string })?.align;
                   return (
                     <th
                       key={header.id}

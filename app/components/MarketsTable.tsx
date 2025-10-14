@@ -29,13 +29,18 @@ interface PolymarketMarket {
   liquidity: number;
   liquidityClob: number;
   oneDayPriceChange: number;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface EventWithMarkets {
+  slug: string;
+  markets?: PolymarketMarket[];
 }
 
 async function fetchAllMarkets(
   onProgress?: (eventCount: number, marketCount: number) => void
 ): Promise<PolymarketMarket[]> {
-  const allEvents: any[] = [];
+  const allEvents: EventWithMarkets[] = [];
   let offset = 0;
   const limit = 500;
 
@@ -48,7 +53,7 @@ async function fetchAllMarkets(
       throw new Error(`Failed to fetch events: ${response.statusText}`);
     }
 
-    const events: any[] = await response.json();
+    const events: EventWithMarkets[] = await response.json();
 
     if (events.length === 0) {
       break;
@@ -230,7 +235,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'id',
         header: 'ID',
-        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        cell: (info) => <div className="text-right">{info.getValue() as string}</div>,
         sortingFn: 'alphanumeric',
         meta: { align: 'right' },
       },
@@ -315,7 +320,7 @@ export default function MarketsTable() {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
-                  const align = (header.column.columnDef.meta as any)?.align;
+                  const align = (header.column.columnDef.meta as { align?: string })?.align;
                   return (
                     <th
                       key={header.id}
