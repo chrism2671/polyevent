@@ -28,25 +28,6 @@ export default function EventsTable() {
   const columns = useMemo<ColumnDef<PolymarketEvent>[]>(
     () => [
       {
-        accessorKey: 'ticker',
-        header: 'Ticker',
-        cell: (info) => {
-          const ticker = info.getValue() as string | null | undefined;
-          const slug = info.row.original.slug;
-          if (!ticker) return '-';
-          return (
-            <a
-              href={`https://polymarket.com/event/${slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              {ticker}
-            </a>
-          );
-        },
-      },
-      {
         accessorKey: 'title',
         header: 'Title',
         cell: (info) => {
