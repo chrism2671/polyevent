@@ -208,14 +208,13 @@ export default function MarketsTable() {
   });
 
   if (loading) {
-    const marketCount = markets.length;
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-xl mb-2">Loading markets...</div>
           {progress > 0 && (
             <div className="text-sm text-gray-600">
-              {progress.toLocaleString()} events loaded → {marketCount.toLocaleString()} markets extracted
+              {progress.toLocaleString()} events loaded
             </div>
           )}
         </div>
