@@ -15,6 +15,7 @@ interface PolymarketMarket {
   id: string;
   question: string;
   slug: string;
+  eventSlug?: string;
   conditionId: string;
   outcomes: string;
   lastTradePrice: number;
@@ -66,12 +67,15 @@ async function fetchAllMarkets(
     offset += limit;
   }
 
-  // Flatten all markets from all events
+  // Flatten all markets from all events, adding event slug to each market
   const allMarkets: PolymarketMarket[] = [];
   for (const event of allEvents) {
     if (event.markets) {
       for (const market of event.markets) {
-        allMarkets.push(market);
+        allMarkets.push({
+          ...market,
+          eventSlug: event.slug,
+        });
       }
     }
   }
@@ -113,10 +117,16 @@ export default function MarketsTable() {
         header: 'Question',
         cell: (info) => {
           const question = info.getValue() as string;
-          const slug = info.row.original.slug;
+          const market = info.row.original;
+          const eventSlug = market.eventSlug;
+          const marketSlug = market.slug;
+          const marketId = market.id;
+          const url = eventSlug && marketSlug
+            ? `https://polymarket.com/event/${eventSlug}/${marketSlug}?tid=${marketId}`
+            : `https://polymarket.com/event/${marketSlug}`;
           return (
             <a
-              href={`https://polymarket.com/event/${slug}`}
+              href={url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline max-w-[300px] truncate block"
@@ -281,12 +291,16 @@ export default function MarketsTable() {
             className="px-3 py-1.5 text-sm border border-gray-300 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeZeroVolume}
-              onChange={(e) => setIncludeZeroVolume(e.target.checked)}
-              className="cursor-pointer"
-            />
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={includeZeroVolume}
+                onChange={(e) => setIncludeZeroVolume(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+            </div>
             Include zero volume
           </label>
           <span className="text-sm text-gray-600">
