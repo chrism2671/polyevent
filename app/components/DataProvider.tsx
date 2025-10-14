@@ -125,11 +125,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .then((fetchedEvents) => {
         setEvents(fetchedEvents);
         // Store in cache
-        const cacheData: CachedData = {
-          events: fetchedEvents,
-          timestamp: Date.now(),
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        try {
+          const cacheData: CachedData = {
+            events: fetchedEvents,
+            timestamp: Date.now(),
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        } catch (e) {
+          // Quota exceeded or other localStorage error - continue without caching
+          console.warn('Failed to cache data in localStorage:', e);
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
