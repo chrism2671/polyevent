@@ -12,6 +12,8 @@ interface ApiCredentials {
   passphrase: string;
 }
 
+const CREDENTIALS_STORAGE_KEY = 'polymarket_credentials';
+
 export default function FillMonitor() {
   const { address, isConnected, chain } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
@@ -33,6 +35,24 @@ export default function FillMonitor() {
       }
     };
   }, []);
+
+  // Clear credentials when address changes
+  useEffect(() => {
+    if (address) {
+      // Clear old credentials from different address
+      const stored = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          if (data.address !== address) {
+            localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
+          }
+        } catch {
+          localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
+        }
+      }
+    }
+  }, [address]);
 
   const requestNotificationPermission = async () => {
     if ('Notification' in window) {
@@ -59,63 +79,88 @@ export default function FillMonitor() {
     }
 
     try {
-      // Switch to Polygon if not already on it
-      if (chain?.id !== polygon.id) {
-        setStatus('Switching to Polygon...');
+      let credentials: ApiCredentials | null = null;
+
+      // Check localStorage first
+      const stored = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
+      if (stored) {
         try {
-          await switchChainAsync({ chainId: polygon.id });
-        } catch (error) {
-          throw new Error('Please switch to Polygon network to continue');
+          const data = JSON.parse(stored);
+          if (data.address === address && data.credentials) {
+            credentials = data.credentials;
+            setStatus('Using stored credentials...');
+          }
+        } catch {
+          localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
         }
       }
 
-      setStatus('Signing message...');
+      // Only sign and derive credentials if we don't have them cached
+      if (!credentials) {
+        // Switch to Polygon if not already on it
+        if (chain?.id !== polygon.id) {
+          setStatus('Switching to Polygon...');
+          try {
+            await switchChainAsync({ chainId: polygon.id });
+          } catch (error) {
+            throw new Error('Please switch to Polygon network to continue');
+          }
+        }
 
-      // EIP-712 typed data for Polymarket authentication
-      const timestamp = Math.floor(Date.now() / 1000);
-      const nonce = 0;
-      const domain = {
-        name: 'ClobAuthDomain',
-        version: '1',
-        chainId: 137, // Polygon
-      };
-      const types = {
-        ClobAuth: [
-          { name: 'address', type: 'address' },
-          { name: 'timestamp', type: 'string' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'message', type: 'string' },
-        ],
-      };
-      const message = {
-        address,
-        timestamp: timestamp.toString(),
-        nonce: nonce,
-        message: 'This message attests that I control the given wallet',
-      };
+        setStatus('Signing message...');
 
-      // Sign the typed data
-      const signature = await signTypedDataAsync({
-        domain,
-        types,
-        primaryType: 'ClobAuth',
-        message,
-      });
+        // EIP-712 typed data for Polymarket authentication
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = 0;
+        const domain = {
+          name: 'ClobAuthDomain',
+          version: '1',
+          chainId: 137, // Polygon
+        };
+        const types = {
+          ClobAuth: [
+            { name: 'address', type: 'address' },
+            { name: 'timestamp', type: 'string' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'message', type: 'string' },
+          ],
+        };
+        const message = {
+          address,
+          timestamp: timestamp.toString(),
+          nonce: nonce,
+          message: 'This message attests that I control the given wallet',
+        };
 
-      setStatus('Deriving API credentials...');
+        // Sign the typed data
+        const signature = await signTypedDataAsync({
+          domain,
+          types,
+          primaryType: 'ClobAuth',
+          message,
+        });
 
-      // Get API credentials from our backend
-      const response = await fetch('/api/polymarket-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, signature, timestamp, nonce }),
-      });
+        setStatus('Deriving API credentials...');
 
-      if (!response.ok) {
-        throw new Error('Failed to derive API credentials');
+        // Get API credentials from our backend
+        const response = await fetch('/api/polymarket-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, signature, timestamp, nonce }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to derive API credentials');
+        }
+
+        credentials = await response.json();
+
+        // Store credentials in localStorage
+        localStorage.setItem(CREDENTIALS_STORAGE_KEY, JSON.stringify({
+          address,
+          credentials,
+        }));
       }
-
-      const credentials: ApiCredentials = await response.json();
 
       setStatus('Connecting to real-time data...');
 

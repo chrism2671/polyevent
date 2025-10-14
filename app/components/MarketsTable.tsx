@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -346,8 +346,8 @@ export default function MarketsTable() {
               const outcomes = market.outcomes ? JSON.parse(market.outcomes) : ['Yes', 'No'];
 
               return (
-                <>
-                  <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Fragment key={row.id}>
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-800">
                     <td className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
                       {hasOrderBook && (
                         <button
@@ -409,7 +409,7 @@ export default function MarketsTable() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
