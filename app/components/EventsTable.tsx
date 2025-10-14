@@ -153,8 +153,9 @@ export default function EventsTable() {
       {
         accessorKey: 'tags',
         header: 'Tags',
+        accessorFn: (row) => row.tags?.map(t => t.label).join(' ') ?? '',
         cell: (info) => {
-          const tags = info.getValue() as Tag[];
+          const tags = info.row.original.tags as Tag[];
           if (!tags || tags.length === 0) return '-';
           return (
             <div className="flex flex-wrap gap-0.5">
