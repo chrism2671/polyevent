@@ -106,6 +106,7 @@ export default function EventsTable() {
         accessorKey: 'id',
         header: 'ID',
         cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        sortingFn: 'alphanumeric',
         meta: { align: 'right' },
       },
       {
@@ -149,103 +150,116 @@ export default function EventsTable() {
       {
         accessorKey: 'markets',
         header: 'Markets',
-        cell: (info) => <div className="text-right">{(info.getValue() as Market[]).length}</div>,
+        accessorFn: (row) => row.markets?.length ?? 0,
+        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'volume',
         header: 'Volume',
+        accessorFn: (row) => row.volume ?? 0,
         cell: (info) => {
           const volume = info.getValue() as number;
-          const formatted = volume == null ? '$0' : `$${volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'volume24hr',
         header: '24h Volume',
+        accessorFn: (row) => row.volume24hr ?? 0,
         cell: (info) => {
           const volume = info.getValue() as number;
-          const formatted = volume == null ? '$0' : `$${volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'volume1wk',
         header: '1wk Volume',
+        accessorFn: (row) => row.volume1wk ?? 0,
         cell: (info) => {
           const volume = info.getValue() as number;
-          const formatted = volume == null ? '$0' : `$${volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'volume1mo',
         header: '1mo Volume',
+        accessorFn: (row) => row.volume1mo ?? 0,
         cell: (info) => {
           const volume = info.getValue() as number;
-          const formatted = volume == null ? '$0' : `$${volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'volume1yr',
         header: '1yr Volume',
+        accessorFn: (row) => row.volume1yr ?? 0,
         cell: (info) => {
           const volume = info.getValue() as number;
-          const formatted = volume == null ? '$0' : `$${volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'liquidity',
         header: 'Liquidity',
+        accessorFn: (row) => row.liquidity ?? 0,
         cell: (info) => {
           const liquidity = info.getValue() as number;
-          const formatted = liquidity == null ? '$0' : `$${liquidity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(liquidity).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'liquidityClob',
         header: 'Liquidity CLOB',
+        accessorFn: (row) => row.liquidityClob ?? 0,
         cell: (info) => {
           const liquidity = info.getValue() as number;
-          const formatted = liquidity == null ? '$0' : `$${liquidity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(liquidity).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'openInterest',
         header: 'Open Interest',
+        accessorFn: (row) => row.openInterest ?? 0,
         cell: (info) => {
           const oi = info.getValue() as number;
-          const formatted = oi == null ? '$0' : `$${oi.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">${Math.round(oi).toLocaleString()}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'competitive',
         header: 'Competitive',
+        accessorFn: (row) => row.competitive ?? 0,
         cell: (info) => {
           const comp = info.getValue() as number;
-          const formatted = comp == null ? '0.00' : comp.toFixed(2);
-          return <div className="text-right">{formatted}</div>;
+          return <div className="text-right">{comp.toFixed(2)}</div>;
         },
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
         accessorKey: 'commentCount',
         header: 'Comments',
-        cell: (info) => <div className="text-right">{info.getValue() ?? 0}</div>,
+        accessorFn: (row) => row.commentCount ?? 0,
+        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        sortingFn: 'basic',
         meta: { align: 'right' },
       },
       {
@@ -281,6 +295,7 @@ export default function EventsTable() {
           const date = new Date(info.getValue() as string);
           return date.toLocaleString();
         },
+        sortingFn: 'datetime',
       },
     ],
     []
@@ -298,6 +313,9 @@ export default function EventsTable() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    debugTable: false,
+    debugHeaders: false,
+    debugColumns: false,
   });
 
   if (loading) {
