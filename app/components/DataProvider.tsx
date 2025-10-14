@@ -42,11 +42,6 @@ export interface PolymarketEvent {
   [key: string]: unknown;
 }
 
-interface CachedData {
-  events: PolymarketEvent[];
-  timestamp: number;
-}
-
 interface DataContextType {
   events: PolymarketEvent[];
   loading: boolean;
@@ -55,9 +50,6 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
-
-const CACHE_KEY = 'polyevent_data';
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
 async function fetchAllEvents(
   onProgress?: (count: number) => void
@@ -101,40 +93,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Check cache first
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const { events: cachedEvents, timestamp }: CachedData = JSON.parse(cached);
-        const age = Date.now() - timestamp;
-
-        if (age < CACHE_DURATION) {
-          // Cache is still valid
-          setEvents(cachedEvents);
-          setLoading(false);
-          return;
-        }
-      } catch (e) {
-        // Invalid cache, continue to fetch
-        console.error('Failed to parse cache:', e);
-      }
-    }
-
-    // Fetch fresh data
     fetchAllEvents(setProgress)
       .then((fetchedEvents) => {
         setEvents(fetchedEvents);
-        // Store in cache
-        try {
-          const cacheData: CachedData = {
-            events: fetchedEvents,
-            timestamp: Date.now(),
-          };
-          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-        } catch (e) {
-          // Quota exceeded or other localStorage error - continue without caching
-          console.warn('Failed to cache data in localStorage:', e);
-        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
