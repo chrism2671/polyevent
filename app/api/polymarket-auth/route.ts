@@ -11,13 +11,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call Polymarket's derive-api-key endpoint
+    // Call Polymarket's derive-api-key endpoint (GET with headers)
     const response = await fetch(
       'https://clob.polymarket.com/auth/derive-api-key',
       {
-        method: 'POST',
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'POLY_ADDRESS': address,
           'POLY_SIGNATURE': signature,
           'POLY_TIMESTAMP': timestamp.toString(),

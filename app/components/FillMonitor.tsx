@@ -1,6 +1,7 @@
 'use client';
 
-import { useAccount, useSignTypedData } from 'wagmi';
+import { useAccount, useSignTypedData, useSwitchChain } from 'wagmi';
+import { polygon } from 'wagmi/chains';
 import { useState, useEffect, useRef } from 'react';
 
 interface ApiCredentials {
@@ -10,8 +11,9 @@ interface ApiCredentials {
 }
 
 export default function FillMonitor() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [status, setStatus] = useState<string>('');
@@ -55,6 +57,16 @@ export default function FillMonitor() {
     }
 
     try {
+      // Switch to Polygon if not already on it
+      if (chain?.id !== polygon.id) {
+        setStatus('Switching to Polygon...');
+        try {
+          await switchChainAsync({ chainId: polygon.id });
+        } catch (error) {
+          throw new Error('Please switch to Polygon network to continue');
+        }
+      }
+
       setStatus('Signing message...');
 
       // EIP-712 typed data for Polymarket authentication
@@ -206,6 +218,12 @@ export default function FillMonitor() {
         <div className="text-sm text-gray-700 dark:text-gray-300">
           Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
         </div>
+
+        {chain && (
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            Network: {chain.name} {chain.id !== polygon.id && <span className="text-yellow-600 dark:text-yellow-400">(will switch to Polygon)</span>}
+          </div>
+        )}
 
         {notificationPermission === 'denied' && (
           <div className="text-sm text-red-600 dark:text-red-400">
