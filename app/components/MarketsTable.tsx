@@ -19,6 +19,7 @@ interface PolymarketMarket {
   eventSlug?: string;
   conditionId: string;
   outcomes: string;
+  clobTokenIds?: string;
   lastTradePrice: number;
   bestBid: number;
   bestAsk: number;
@@ -33,11 +34,54 @@ interface PolymarketMarket {
   [key: string]: unknown;
 }
 
+interface OrderBookLevel {
+  price: string;
+  size: string;
+}
+
+interface OrderBook {
+  bids: OrderBookLevel[];
+  asks: OrderBookLevel[];
+  timestamp?: string;
+}
+
 export default function MarketsTable() {
   const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [orderBooks, setOrderBooks] = useState<Record<string, OrderBook[]>>({});
+
+  const toggleRow = async (marketId: string, clobTokenIds?: string) => {
+    const newExpanded = new Set(expandedRows);
+
+    if (newExpanded.has(marketId)) {
+      newExpanded.delete(marketId);
+      setExpandedRows(newExpanded);
+      return;
+    }
+
+    newExpanded.add(marketId);
+    setExpandedRows(newExpanded);
+
+    // Fetch orderbook if not already loaded
+    if (!orderBooks[marketId] && clobTokenIds) {
+      try {
+        const tokenIds = JSON.parse(clobTokenIds) as string[];
+        const books = await Promise.all(
+          tokenIds.map(async (tokenId) => {
+            const response = await fetch(`/api/orderbook?token_id=${tokenId}`);
+            if (!response.ok) throw new Error('Failed to fetch orderbook');
+            return response.json();
+          })
+        );
+        setOrderBooks((prev) => ({ ...prev, [marketId]: books }));
+      } catch (error) {
+        console.error('Error fetching orderbook:', error);
+      }
+    }
+  };
 
   // Extract markets from events
   const markets = useMemo(() => {
@@ -266,6 +310,7 @@ export default function MarketsTable() {
           <thead className="bg-gray-50 dark:bg-gray-800">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
+                <th className="px-3 py-1.5 w-8"></th>
                 {headerGroup.headers.map((header) => {
                   const align = (header.column.columnDef.meta as { align?: string })?.align;
                   return (
@@ -293,15 +338,80 @@ export default function MarketsTable() {
             ))}
           </thead>
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const market = row.original;
+              const isExpanded = expandedRows.has(market.id);
+              const hasOrderBook = market.clobTokenIds;
+              const books = orderBooks[market.id];
+              const outcomes = market.outcomes ? JSON.parse(market.outcomes) : ['Yes', 'No'];
+
+              return (
+                <>
+                  <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
+                      {hasOrderBook && (
+                        <button
+                          onClick={() => toggleRow(market.id, market.clobTokenIds)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                        >
+                          {isExpanded ? '▼' : '▶'}
+                        </button>
+                      )}
+                    </td>
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${row.id}-expanded`}>
+                      <td colSpan={table.getAllColumns().length + 1} className="px-3 py-3 bg-gray-50 dark:bg-gray-800">
+                        {books ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            {books.map((book, idx) => (
+                              <div key={idx}>
+                                <h4 className="font-semibold mb-2 text-sm dark:text-gray-200">
+                                  {outcomes[idx]} Order Book
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Bids</div>
+                                    <div className="space-y-0.5">
+                                      {book.bids.slice(0, 5).map((bid, i) => (
+                                        <div key={i} className="flex justify-between text-xs">
+                                          <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toFixed(1)}¢</span>
+                                          <span className="text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toFixed(2)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Asks</div>
+                                    <div className="space-y-0.5">
+                                      {book.asks.slice(0, 5).map((ask, i) => (
+                                        <div key={i} className="flex justify-between text-xs">
+                                          <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toFixed(1)}¢</span>
+                                          <span className="text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toFixed(2)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                            Loading orderbook...
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
           </tbody>
         </table>
       </div>
