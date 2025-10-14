@@ -1,0 +1,23 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#grad)"/>
+
+  <!-- Main Title -->
+  <text x="600" y="280" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle">PolyEvent</text>
+
+  <!-- Subtitle -->
+  <text x="600" y="360" font-family="Arial, sans-serif" font-size="36" fill="rgba(255,255,255,0.9)" text-anchor="middle">Browse Polymarket Events &amp; Markets</text>
+
+  <!-- Description -->
+  <text x="600" y="440" font-family="Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.8)" text-anchor="middle">Real-time data • Volume tracking • Market analytics</text>
+
+  <!-- Bottom attribution -->
+  <text x="600" y="560" font-family="Arial, sans-serif" font-size="22" fill="rgba(255,255,255,0.7)" text-anchor="middle">by @chrismuktar</text>
+</svg>
