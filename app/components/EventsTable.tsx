@@ -38,7 +38,7 @@ export default function EventsTable() {
               href={`https://polymarket.com/event/${slug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline max-w-[240px] truncate block"
+              className="text-blue-600 dark:text-blue-400 hover:underline max-w-[240px] truncate block"
               title={title}
             >
               {title}
@@ -162,14 +162,14 @@ export default function EventsTable() {
               {tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag.id}
-                  className="px-1.5 py-0.5 bg-gray-100 rounded text-xs"
+                  className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs"
                   title={tags.map(t => t.label).join(', ')}
                 >
                   {tag.label}
                 </span>
               ))}
               {tags.length > 3 && (
-                <span className="px-1.5 py-0.5 text-xs text-gray-500">
+                <span className="px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400">
                   +{tags.length - 3}
                 </span>
               )}
@@ -217,7 +217,7 @@ export default function EventsTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">
+        <div className="text-xl dark:text-gray-200">
           Loading events... {progress > 0 && `(${progress.toLocaleString()} loaded)`}
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function EventsTable() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-red-600">Error: {error}</div>
+        <div className="text-xl text-red-600 dark:text-red-400">Error: {error}</div>
       </div>
     );
   }
@@ -235,16 +235,16 @@ export default function EventsTable() {
   return (
     <div className="p-4">
       <div className="mb-3">
-        <h1 className="text-2xl font-bold mb-2">Polymarket Events</h1>
+        <h1 className="text-2xl font-bold mb-2 dark:text-gray-100">Polymarket Events</h1>
         <div className="flex items-center gap-3 mb-2">
           <input
             type="text"
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder="Search events..."
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200"
           />
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
             <div className="relative">
               <input
                 type="checkbox"
@@ -252,20 +252,20 @@ export default function EventsTable() {
                 onChange={(e) => setIncludeZeroVolume(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors"></div>
+              <div className="w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors"></div>
               <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
             </div>
             Include zero volume
           </label>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             Showing {table.getFilteredRowModel().rows.length} of {filteredEvents.length} active events
           </span>
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-800">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -273,7 +273,7 @@ export default function EventsTable() {
                   return (
                     <th
                       key={header.id}
-                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 ${
+                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
                         align === 'right' ? 'text-right' : 'text-left'
                       }`}
                       onClick={header.column.getToggleSortingHandler()}
@@ -294,11 +294,11 @@ export default function EventsTable() {
               </tr>
             ))}
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50">
+              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-1.5 text-xs text-gray-900">
+                  <td key={cell.id} className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

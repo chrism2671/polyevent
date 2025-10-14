@@ -8,10 +8,10 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-8">PolyEvent</h1>
-        <p className="text-gray-600 mb-8">Browse Polymarket events and markets</p>
+        <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-gray-100">PolyEvent</h1>
+        <p className="text-gray-600 dark:text-gray-400 mb-8">Browse Polymarket events and markets</p>
         <div className="flex gap-4 justify-center">
           <Link
             href="/events"
