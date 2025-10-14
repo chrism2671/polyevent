@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://poly.chriscentral.com'),
   title: "PolyEvent - Browse Polymarket Events & Markets",
   description: "Explore and analyze Polymarket prediction markets. View real-time events, market prices, volume, liquidity, and trends.",
   keywords: ["Polymarket", "prediction markets", "crypto", "betting", "events", "markets", "DeFi"],
@@ -23,12 +24,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PolyEvent - Browse Polymarket Events & Markets",
     description: "Explore and analyze Polymarket prediction markets. View real-time events, market prices, volume, liquidity, and trends.",
-    url: "https://polyevent.vercel.app",
     siteName: "PolyEvent",
     type: "website",
     images: [
       {
-        url: "https://polyevent.vercel.app/og-image.png",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "PolyEvent - Polymarket Browser",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: "PolyEvent - Browse Polymarket Events & Markets",
     description: "Explore and analyze Polymarket prediction markets. View real-time events, market prices, volume, liquidity, and trends.",
     creator: "@chrismuktar",
-    images: ["https://polyevent.vercel.app/og-image.png"],
+    images: ["/og-image.png"],
   },
 };
 
