@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,95 +10,12 @@ import {
   SortingState,
   ColumnDef,
 } from '@tanstack/react-table';
-
-interface Tag {
-  id: string;
-  label: string;
-  slug: string;
-}
-
-interface Market {
-  id: string;
-  question: string;
-  [key: string]: unknown;
-}
-
-interface PolymarketEvent {
-  id: string;
-  title: string;
-  description: string;
-  slug: string;
-  ticker: string;
-  endDate: string;
-  markets: Market[];
-  volume: number;
-  volume24hr: number;
-  volume1wk: number;
-  volume1mo: number;
-  volume1yr: number;
-  openInterest: number;
-  liquidity: number;
-  liquidityAmm: number;
-  liquidityClob: number;
-  competitive: number;
-  commentCount: number;
-  active: boolean;
-  closed: boolean;
-  featured: boolean;
-  restricted: boolean;
-  tags: Tag[];
-  [key: string]: unknown;
-}
-
-async function fetchAllEvents(
-  onProgress?: (count: number) => void
-): Promise<PolymarketEvent[]> {
-  const allEvents: PolymarketEvent[] = [];
-  let offset = 0;
-  const limit = 500;
-
-  while (true) {
-    const response = await fetch(
-      `/api/events?limit=${limit}&offset=${offset}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: ${response.statusText}`);
-    }
-
-    const events: PolymarketEvent[] = await response.json();
-
-    if (events.length === 0) {
-      break;
-    }
-
-    allEvents.push(...events);
-    onProgress?.(allEvents.length);
-
-    if (events.length < limit) {
-      break;
-    }
-
-    offset += limit;
-  }
-
-  return allEvents;
-}
+import { useData, PolymarketEvent, Tag } from './DataProvider';
 
 export default function EventsTable() {
-  const [events, setEvents] = useState<PolymarketEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingCount, setLoadingCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
-
-  useEffect(() => {
-    fetchAllEvents((count) => setLoadingCount(count))
-      .then(setEvents)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const columns = useMemo<ColumnDef<PolymarketEvent>[]>(
     () => [
@@ -311,7 +228,7 @@ export default function EventsTable() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-xl">
-          Loading events... {loadingCount > 0 && `(${loadingCount.toLocaleString()} loaded)`}
+          Loading events... {progress > 0 && `(${progress.toLocaleString()} loaded)`}
         </div>
       </div>
     );

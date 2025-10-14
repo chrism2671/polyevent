@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +10,7 @@ import {
   SortingState,
   ColumnDef,
 } from '@tanstack/react-table';
+import { useData } from './DataProvider';
 
 interface PolymarketMarket {
   id: string;
@@ -32,81 +33,27 @@ interface PolymarketMarket {
   [key: string]: unknown;
 }
 
-interface EventWithMarkets {
-  slug: string;
-  markets?: PolymarketMarket[];
-}
-
-async function fetchAllMarkets(
-  onProgress?: (eventCount: number, marketCount: number) => void
-): Promise<PolymarketMarket[]> {
-  const allEvents: EventWithMarkets[] = [];
-  let offset = 0;
-  const limit = 500;
-
-  while (true) {
-    const response = await fetch(
-      `/api/events?limit=${limit}&offset=${offset}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch events: ${response.statusText}`);
-    }
-
-    const events: EventWithMarkets[] = await response.json();
-
-    if (events.length === 0) {
-      break;
-    }
-
-    allEvents.push(...events);
-
-    // Extract markets from events
-    const marketCount = allEvents.reduce((sum, event) => sum + (event.markets?.length ?? 0), 0);
-    onProgress?.(allEvents.length, marketCount);
-
-    if (events.length < limit) {
-      break;
-    }
-
-    offset += limit;
-  }
-
-  // Flatten all markets from all events, adding event slug to each market
-  const allMarkets: PolymarketMarket[] = [];
-  for (const event of allEvents) {
-    if (event.markets) {
-      for (const market of event.markets) {
-        allMarkets.push({
-          ...market,
-          eventSlug: event.slug,
-        });
-      }
-    }
-  }
-
-  return allMarkets;
-}
-
 export default function MarketsTable() {
-  const [markets, setMarkets] = useState<PolymarketMarket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingEvents, setLoadingEvents] = useState(0);
-  const [loadingMarkets, setLoadingMarkets] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
 
-  useEffect(() => {
-    fetchAllMarkets((eventCount, marketCount) => {
-      setLoadingEvents(eventCount);
-      setLoadingMarkets(marketCount);
-    })
-      .then(setMarkets)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  // Extract markets from events
+  const markets = useMemo(() => {
+    const allMarkets: PolymarketMarket[] = [];
+    for (const event of events) {
+      if (event.markets) {
+        for (const market of event.markets) {
+          allMarkets.push({
+            ...market,
+            eventSlug: event.slug,
+          } as PolymarketMarket);
+        }
+      }
+    }
+    return allMarkets;
+  }, [events]);
 
   const filteredMarkets = useMemo(() => {
     if (includeZeroVolume) {
@@ -261,13 +208,14 @@ export default function MarketsTable() {
   });
 
   if (loading) {
+    const marketCount = markets.length;
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-xl mb-2">Loading markets...</div>
-          {loadingEvents > 0 && (
+          {progress > 0 && (
             <div className="text-sm text-gray-600">
-              {loadingEvents.toLocaleString()} events loaded → {loadingMarkets.toLocaleString()} markets extracted
+              {progress.toLocaleString()} events loaded → {marketCount.toLocaleString()} markets extracted
             </div>
           )}
         </div>
