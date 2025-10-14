@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import WalletConnect from './WalletConnect';
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -37,14 +38,17 @@ export default function Navigation() {
               </Link>
             </div>
           </div>
-          <a
-            href="https://x.com/chrismuktar"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-          >
-            Vibe coded by @chrismuktar
-          </a>
+          <div className="flex items-center gap-4">
+            <WalletConnect />
+            <a
+              href="https://x.com/chrismuktar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            >
+              Vibe coded by @chrismuktar
+            </a>
+          </div>
         </div>
       </div>
     </nav>

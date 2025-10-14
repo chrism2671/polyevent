@@ -9,10 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.3",
     "@tanstack/react-table": "^8.21.3",
     "next": "15.5.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "viem": "^2.38.2",
+    "wagmi": "^2.18.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

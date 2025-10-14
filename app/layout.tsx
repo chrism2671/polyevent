@@ -5,6 +5,7 @@ import "./globals.css";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
 import { DataProvider } from "./components/DataProvider";
+import { WalletProvider } from "./components/WalletProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,11 +70,13 @@ export default function RootLayout({
             })();
           `}
         </Script>
-        <DataProvider>
-          <Navigation />
-          {children}
-          <Footer />
-        </DataProvider>
+        <WalletProvider>
+          <DataProvider>
+            <Navigation />
+            {children}
+            <Footer />
+          </DataProvider>
+        </WalletProvider>
       </body>
     </html>
   );
