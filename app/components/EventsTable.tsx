@@ -16,6 +16,14 @@ export default function EventsTable() {
   const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
+
+  const filteredEvents = useMemo(() => {
+    if (includeZeroVolume) {
+      return events;
+    }
+    return events.filter(e => (e.volume ?? 0) > 0);
+  }, [events, includeZeroVolume]);
 
   const columns = useMemo<ColumnDef<PolymarketEvent>[]>(
     () => [
@@ -208,7 +216,7 @@ export default function EventsTable() {
   );
 
   const table = useReactTable({
-    data: events,
+    data: filteredEvents,
     columns,
     state: {
       sorting,
@@ -246,7 +254,7 @@ export default function EventsTable() {
     <div className="p-4">
       <div className="mb-3">
         <h1 className="text-2xl font-bold mb-2">Polymarket Events</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-2">
           <input
             type="text"
             value={globalFilter ?? ''}
@@ -254,8 +262,21 @@ export default function EventsTable() {
             placeholder="Search events..."
             className="px-3 py-1.5 text-sm border border-gray-300 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={includeZeroVolume}
+                onChange={(e) => setIncludeZeroVolume(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+            </div>
+            Include zero volume
+          </label>
           <span className="text-sm text-gray-600">
-            Showing {table.getFilteredRowModel().rows.length} of {events.length} active events
+            Showing {table.getFilteredRowModel().rows.length} of {filteredEvents.length} active events
           </span>
         </div>
       </div>
