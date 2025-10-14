@@ -90,7 +90,7 @@ export default function EventsTable() {
   const [loading, setLoading] = useState(true);
   const [loadingCount, setLoadingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
 
   useEffect(() => {
@@ -102,13 +102,6 @@ export default function EventsTable() {
 
   const columns = useMemo<ColumnDef<PolymarketEvent>[]>(
     () => [
-      {
-        accessorKey: 'id',
-        header: 'ID',
-        cell: (info) => <div className="text-right">{info.getValue()}</div>,
-        sortingFn: 'alphanumeric',
-        meta: { align: 'right' },
-      },
       {
         accessorKey: 'ticker',
         header: 'Ticker',
@@ -139,7 +132,7 @@ export default function EventsTable() {
               href={`https://polymarket.com/event/${slug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline max-w-md truncate block"
+              className="text-blue-600 hover:underline max-w-[240px] truncate block"
               title={title}
             >
               {title}
@@ -233,17 +226,6 @@ export default function EventsTable() {
         meta: { align: 'right' },
       },
       {
-        accessorKey: 'openInterest',
-        header: 'Open Interest',
-        accessorFn: (row) => row.openInterest ?? 0,
-        cell: (info) => {
-          const oi = info.getValue() as number;
-          return <div className="text-right">${Math.round(oi).toLocaleString()}</div>;
-        },
-        sortingFn: 'basic',
-        meta: { align: 'right' },
-      },
-      {
         accessorKey: 'competitive',
         header: 'Competitive',
         accessorFn: (row) => row.competitive ?? 0,
@@ -296,6 +278,13 @@ export default function EventsTable() {
           return date.toLocaleString();
         },
         sortingFn: 'datetime',
+      },
+      {
+        accessorKey: 'id',
+        header: 'ID',
+        cell: (info) => <div className="text-right">{info.getValue()}</div>,
+        sortingFn: 'alphanumeric',
+        meta: { align: 'right' },
       },
     ],
     []
