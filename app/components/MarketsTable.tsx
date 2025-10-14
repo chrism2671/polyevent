@@ -352,7 +352,7 @@ export default function MarketsTable() {
                       {hasOrderBook && (
                         <button
                           onClick={() => toggleRow(market.id, market.clobTokenIds)}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
                         >
                           {isExpanded ? '▼' : '▶'}
                         </button>
@@ -367,45 +367,60 @@ export default function MarketsTable() {
                   {isExpanded && (
                     <tr key={`${row.id}-expanded`}>
                       <td colSpan={table.getAllColumns().length + 1} className="px-3 py-3 bg-gray-50 dark:bg-gray-800">
-                        {books ? (
-                          <div className="grid grid-cols-2 gap-4">
-                            {books.map((book, idx) => (
-                              <div key={idx}>
-                                <h4 className="font-semibold mb-2 text-sm dark:text-gray-200">
-                                  {outcomes[idx]} Order Book
-                                </h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Bids</div>
-                                    <div className="space-y-0.5">
-                                      {book.bids.slice(0, 5).map((bid, i) => (
-                                        <div key={i} className="flex justify-between text-xs font-mono">
-                                          <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                          <span className="text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                        </div>
-                                      ))}
+                        <div className="relative">
+                          <button
+                            onClick={() => toggleRow(market.id, market.clobTokenIds)}
+                            className="absolute top-0 right-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold leading-none cursor-pointer"
+                            aria-label="Close orderbook"
+                          >
+                            ×
+                          </button>
+                          {books ? (
+                            <div className="grid grid-cols-2 gap-4 pr-6">
+                              {books.map((book, idx) => (
+                                <div key={idx}>
+                                  <h4 className="font-semibold mb-2 text-sm dark:text-gray-200">
+                                    {outcomes[idx]} Order Book
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Bids</div>
+                                      <div className="space-y-0.5">
+                                        {book.bids
+                                          .sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+                                          .slice(0, 5)
+                                          .map((bid, i) => (
+                                          <div key={i} className="flex justify-between text-xs font-mono">
+                                            <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                            <span className="text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div>
-                                    <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Asks</div>
-                                    <div className="space-y-0.5">
-                                      {book.asks.slice(0, 5).map((ask, i) => (
-                                        <div key={i} className="flex justify-between text-xs font-mono">
-                                          <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                          <span className="text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                        </div>
-                                      ))}
+                                    <div>
+                                      <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Asks</div>
+                                      <div className="space-y-0.5">
+                                        {book.asks
+                                          .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+                                          .slice(0, 5)
+                                          .map((ask, i) => (
+                                          <div key={i} className="flex justify-between text-xs font-mono">
+                                            <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                            <span className="text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-                            Loading orderbook...
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                              Loading orderbook...
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}

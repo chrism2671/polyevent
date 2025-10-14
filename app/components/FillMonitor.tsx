@@ -22,6 +22,8 @@ export default function FillMonitor() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [status, setStatus] = useState<string>('');
   const clientRef = useRef<RealTimeDataClient | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnectRef = useRef(false);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -30,6 +32,10 @@ export default function FillMonitor() {
 
     // Cleanup client on unmount
     return () => {
+      shouldReconnectRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       if (clientRef.current) {
         clientRef.current.disconnect();
       }
@@ -163,46 +169,68 @@ export default function FillMonitor() {
       }
 
       setStatus('Connecting to real-time data...');
+      shouldReconnectRef.current = true;
 
-      // Create message handler for fill events
-      const onMessage = (message: Message) => {
-        console.log('Received message:', message);
+      const connectWithReconnect = () => {
+        // Create message handler for fill events
+        const onMessage = (message: Message) => {
+          console.log('Received message:', message);
 
-        // Handle fill events
-        if (message.topic === 'clob_user' && message.type === 'trade') {
-          const payload = message.payload as any;
-          new Notification('Order Filled! 🎉', {
-            body: `Market: ${payload.market || 'Unknown'}\nPrice: ${payload.price || 'N/A'}\nSize: ${payload.size || 'N/A'}`,
-            icon: '/og-image.png',
+          // Handle fill events
+          if (message.topic === 'clob_user' && message.type === 'trade') {
+            const payload = message.payload as any;
+            new Notification('Order Filled! 🎉', {
+              body: `Market: ${payload.market || 'Unknown'}\nPrice: ${payload.price || 'N/A'}\nSize: ${payload.size || 'N/A'}`,
+              icon: '/og-image.png',
+            });
+          }
+        };
+
+        // Create connect handler to subscribe
+        const onConnect = (client: RealTimeDataClient) => {
+          setStatus('Monitoring active');
+          client.subscribe({
+            subscriptions: [
+              {
+                topic: 'clob_user',
+                type: 'trade',
+                clob_auth: {
+                  key: credentials.apiKey,
+                  secret: credentials.secret,
+                  passphrase: credentials.passphrase,
+                },
+              },
+            ],
           });
+        };
+
+        try {
+          // Disconnect existing client if any
+          if (clientRef.current) {
+            clientRef.current.disconnect();
+          }
+
+          // Create and connect the client
+          const client = new RealTimeDataClient({ onMessage, onConnect });
+          clientRef.current = client;
+          client.connect();
+        } catch (error) {
+          console.error('WebSocket connection error:', error);
+
+          // Attempt reconnection if should reconnect
+          if (shouldReconnectRef.current) {
+            setStatus('Connection lost, reconnecting...');
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (shouldReconnectRef.current) {
+                connectWithReconnect();
+              }
+            }, 5000); // Reconnect after 5 seconds
+          }
         }
       };
 
-      // Create connect handler to subscribe
-      const onConnect = (client: RealTimeDataClient) => {
-        setStatus('Subscribing to fill events...');
-        client.subscribe({
-          subscriptions: [
-            {
-              topic: 'clob_user',
-              type: 'trade',
-              clob_auth: {
-                key: credentials.apiKey,
-                secret: credentials.secret,
-                passphrase: credentials.passphrase,
-              },
-            },
-          ],
-        });
-      };
-
-      // Create and connect the client
-      const client = new RealTimeDataClient({ onMessage, onConnect });
-      clientRef.current = client;
-      client.connect();
-
+      connectWithReconnect();
       setIsMonitoring(true);
-      setStatus('Monitoring active');
 
       // Show success notification
       new Notification('Fill Monitor Started', {
@@ -217,6 +245,11 @@ export default function FillMonitor() {
   };
 
   const stopMonitoring = () => {
+    shouldReconnectRef.current = false;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (clientRef.current) {
       clientRef.current.disconnect();
       clientRef.current = null;
