@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,6 +11,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useData } from './DataProvider';
+import { RealTimeDataClient, Message } from '@polymarket/real-time-data-client';
 
 interface PolymarketMarket {
   id: string;
@@ -52,6 +53,189 @@ export default function MarketsTable() {
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [orderBooks, setOrderBooks] = useState<Record<string, OrderBook[]>>({});
+  const clientRef = useRef<RealTimeDataClient | null>(null);
+  const subscribedMarketsRef = useRef<Set<string>>(new Set());
+  const marketsRef = useRef<PolymarketMarket[]>([]);
+
+  // Initialize WebSocket connection using RealTimeDataClient
+  useEffect(() => {
+    const onMessage = (message: Message) => {
+      // Handle book messages (full orderbook snapshot)
+      if (message.type === 'book' && message.market) {
+        const tokenId = message.market;
+
+        setOrderBooks(prev => {
+          const newOrderBooks = { ...prev };
+
+          for (const [marketId, books] of Object.entries(prev)) {
+            const market = marketsRef.current.find(m => m.id === marketId);
+            if (market?.clobTokenIds) {
+              const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+              const tokenIndex = tokenIds.indexOf(tokenId);
+
+              if (tokenIndex !== -1) {
+                const payload = message.payload as any;
+                const updated = [...books];
+                updated[tokenIndex] = {
+                  bids: payload.bids || [],
+                  asks: payload.asks || [],
+                  timestamp: payload.timestamp,
+                };
+                newOrderBooks[marketId] = updated;
+                break;
+              }
+            }
+          }
+
+          return newOrderBooks;
+        });
+      }
+
+      // Handle price change messages (incremental updates)
+      if (message.type === 'price_change' && message.market) {
+        const tokenId = message.market;
+
+        setOrderBooks(prev => {
+          const newOrderBooks = { ...prev };
+
+          for (const [marketId, books] of Object.entries(prev)) {
+            const market = marketsRef.current.find(m => m.id === marketId);
+            if (market?.clobTokenIds) {
+              const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+              const tokenIndex = tokenIds.indexOf(tokenId);
+
+              if (tokenIndex !== -1 && books[tokenIndex]) {
+                const currentBook = books[tokenIndex];
+                const payload = message.payload as any;
+
+                if (payload.changes) {
+                  const newBids = [...(currentBook.bids || [])];
+                  const newAsks = [...(currentBook.asks || [])];
+
+                  for (const change of payload.changes) {
+                    if (change.side === 'BUY') {
+                      const index = newBids.findIndex(b => b.price === change.price);
+                      if (change.size === '0') {
+                        if (index !== -1) newBids.splice(index, 1);
+                      } else {
+                        if (index !== -1) {
+                          newBids[index].size = change.size;
+                        } else {
+                          newBids.push({ price: change.price, size: change.size });
+                        }
+                      }
+                    } else if (change.side === 'SELL') {
+                      const index = newAsks.findIndex(a => a.price === change.price);
+                      if (change.size === '0') {
+                        if (index !== -1) newAsks.splice(index, 1);
+                      } else {
+                        if (index !== -1) {
+                          newAsks[index].size = change.size;
+                        } else {
+                          newAsks.push({ price: change.price, size: change.size });
+                        }
+                      }
+                    }
+                  }
+
+                  const updated = [...books];
+                  updated[tokenIndex] = {
+                    bids: newBids,
+                    asks: newAsks,
+                    timestamp: payload.timestamp,
+                  };
+                  newOrderBooks[marketId] = updated;
+                }
+                break;
+              }
+            }
+          }
+
+          return newOrderBooks;
+        });
+      }
+    };
+
+    const onConnect = () => {
+      console.log('Market data WebSocket connected');
+    };
+
+    try {
+      const client = new RealTimeDataClient({ onMessage, onConnect });
+      clientRef.current = client;
+      client.connect();
+    } catch (error) {
+      console.error('Error initializing market data WebSocket:', error);
+    }
+
+    return () => {
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Subscribe/unsubscribe to markets based on expanded rows
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!client) return;
+
+    // Determine which token IDs should be subscribed
+    const tokenIdsToSubscribe = new Set<string>();
+    for (const marketId of expandedRows) {
+      const market = marketsRef.current.find(m => m.id === marketId);
+      if (market?.clobTokenIds) {
+        const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+        tokenIds.forEach(id => tokenIdsToSubscribe.add(id));
+      }
+    }
+
+    // Find tokens to unsubscribe (currently subscribed but not in expanded rows)
+    const tokensToUnsubscribe: string[] = [];
+    for (const tokenId of subscribedMarketsRef.current) {
+      if (!tokenIdsToSubscribe.has(tokenId)) {
+        tokensToUnsubscribe.push(tokenId);
+      }
+    }
+
+    // Find tokens to subscribe (in expanded rows but not currently subscribed)
+    const tokensToSubscribeNew: string[] = [];
+    for (const tokenId of tokenIdsToSubscribe) {
+      if (!subscribedMarketsRef.current.has(tokenId)) {
+        tokensToSubscribeNew.push(tokenId);
+      }
+    }
+
+    // Unsubscribe from markets that are no longer expanded
+    if (tokensToUnsubscribe.length > 0) {
+      try {
+        client.unsubscribe({
+          subscriptions: tokensToUnsubscribe.map(market => ({
+            topic: 'market',
+            market,
+          })),
+        });
+        tokensToUnsubscribe.forEach(id => subscribedMarketsRef.current.delete(id));
+      } catch (error) {
+        console.error('Error unsubscribing from markets:', error);
+      }
+    }
+
+    // Subscribe to newly expanded markets
+    if (tokensToSubscribeNew.length > 0) {
+      try {
+        client.subscribe({
+          subscriptions: tokensToSubscribeNew.map(market => ({
+            topic: 'market',
+            market,
+          })),
+        });
+        tokensToSubscribeNew.forEach(id => subscribedMarketsRef.current.add(id));
+      } catch (error) {
+        console.error('Error subscribing to markets:', error);
+      }
+    }
+  }, [expandedRows]);
 
   const toggleRow = async (marketId: string, clobTokenIds?: string) => {
     const newExpanded = new Set(expandedRows);
@@ -98,6 +282,11 @@ export default function MarketsTable() {
     }
     return allMarkets;
   }, [events]);
+
+  // Keep marketsRef in sync with markets
+  useEffect(() => {
+    marketsRef.current = markets;
+  }, [markets]);
 
   const filteredMarkets = useMemo(() => {
     if (includeZeroVolume) {
@@ -246,6 +435,20 @@ export default function MarketsTable() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: (row, columnId, filterValue) => {
+      const searchTerms = String(filterValue).toLowerCase().split(' ').filter(term => term.length > 0);
+      if (searchTerms.length === 0) return true;
+
+      // Get all searchable text from the row
+      const searchableText = [
+        row.original.question,
+        row.original.outcomes,
+        row.original.id,
+      ].join(' ').toLowerCase();
+
+      // Check if all search terms are present
+      return searchTerms.every(term => searchableText.includes(term));
+    },
     debugTable: false,
     debugHeaders: false,
     debugColumns: false,
