@@ -11,6 +11,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useData } from './DataProvider';
+import TokenId from './TokenId';
 
 interface PolymarketMarket {
   id: string;
@@ -601,6 +602,9 @@ export default function MarketsTable() {
                           {books ? (
                             <div className="grid grid-cols-2 gap-4 pr-6">
                               {books.map((book, idx) => {
+                                const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
+                                const tokenId = tokenIds[idx] || '';
+
                                 // Sort and calculate cumulative volumes
                                 const sortedAsks = [...book.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
                                 const sortedBids = [...book.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
@@ -652,7 +656,7 @@ export default function MarketsTable() {
                                 return (
                                   <div key={idx} className="max-h-96 overflow-y-auto">
                                     <h4 className="font-semibold mb-2 text-sm dark:text-gray-200 sticky top-0 bg-gray-50 dark:bg-gray-800 pb-1">
-                                      {outcomes[idx]} Order Book
+                                      {outcomes[idx]} <TokenId tokenId={tokenId} />
                                     </h4>
                                     <div className="space-y-2">
                                       {/* Header */}
