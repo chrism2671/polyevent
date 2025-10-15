@@ -11,7 +11,6 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useData } from './DataProvider';
-import { RealTimeDataClient, Message } from '@polymarket/real-time-data-client';
 
 interface PolymarketMarket {
   id: string;
@@ -53,132 +52,177 @@ export default function MarketsTable() {
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [orderBooks, setOrderBooks] = useState<Record<string, OrderBook[]>>({});
-  const clientRef = useRef<RealTimeDataClient | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const subscribedMarketsRef = useRef<Set<string>>(new Set());
   const marketsRef = useRef<PolymarketMarket[]>([]);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize WebSocket connection using RealTimeDataClient
+  // Initialize WebSocket connection for public market data
   useEffect(() => {
-    const onMessage = (message: Message) => {
-      // Handle book messages (full orderbook snapshot)
-      if (message.type === 'book' && message.market) {
-        const tokenId = message.market;
+    const connectWebSocket = () => {
+      const ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/market');
+      wsRef.current = ws;
 
-        setOrderBooks(prev => {
-          const newOrderBooks = { ...prev };
+      ws.onopen = () => {
+        console.log('Market data WebSocket connected');
 
-          for (const [marketId, books] of Object.entries(prev)) {
-            const market = marketsRef.current.find(m => m.id === marketId);
-            if (market?.clobTokenIds) {
-              const tokenIds = JSON.parse(market.clobTokenIds) as string[];
-              const tokenIndex = tokenIds.indexOf(tokenId);
-
-              if (tokenIndex !== -1) {
-                const payload = message.payload as any;
-                const updated = [...books];
-                updated[tokenIndex] = {
-                  bids: payload.bids || [],
-                  asks: payload.asks || [],
-                  timestamp: payload.timestamp,
-                };
-                newOrderBooks[marketId] = updated;
-                break;
-              }
-            }
+        // Send PING every 30 seconds to keep connection alive
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send('PING');
           }
+        }, 30000);
 
-          return newOrderBooks;
-        });
-      }
+        // Store interval ID for cleanup
+        (ws as any).pingInterval = pingInterval;
+      };
 
-      // Handle price change messages (incremental updates)
-      if (message.type === 'price_change' && message.market) {
-        const tokenId = message.market;
+      ws.onmessage = (event) => {
+        // Skip non-JSON messages (like PONG)
+        if (typeof event.data !== 'string' || event.data === 'PONG') {
+          return;
+        }
 
-        setOrderBooks(prev => {
-          const newOrderBooks = { ...prev };
+        try {
+          const message = JSON.parse(event.data);
+          console.log('WebSocket message received:', message);
 
-          for (const [marketId, books] of Object.entries(prev)) {
-            const market = marketsRef.current.find(m => m.id === marketId);
-            if (market?.clobTokenIds) {
-              const tokenIds = JSON.parse(market.clobTokenIds) as string[];
-              const tokenIndex = tokenIds.indexOf(tokenId);
+          // Handle array of orderbooks (initial subscription response)
+          if (Array.isArray(message)) {
+            setOrderBooks(prev => {
+              const newOrderBooks = { ...prev };
 
-              if (tokenIndex !== -1 && books[tokenIndex]) {
-                const currentBook = books[tokenIndex];
-                const payload = message.payload as any;
+              for (const book of message) {
+                const tokenId = book.asset_id;
 
-                if (payload.changes) {
-                  const newBids = [...(currentBook.bids || [])];
-                  const newAsks = [...(currentBook.asks || [])];
+                // Find which market this belongs to
+                for (const [marketId, books] of Object.entries(prev)) {
+                  const market = marketsRef.current.find(m => m.id === marketId);
+                  if (market?.clobTokenIds) {
+                    const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+                    const tokenIndex = tokenIds.indexOf(tokenId);
 
-                  for (const change of payload.changes) {
-                    if (change.side === 'BUY') {
-                      const index = newBids.findIndex(b => b.price === change.price);
-                      if (change.size === '0') {
-                        if (index !== -1) newBids.splice(index, 1);
-                      } else {
-                        if (index !== -1) {
-                          newBids[index].size = change.size;
-                        } else {
-                          newBids.push({ price: change.price, size: change.size });
-                        }
-                      }
-                    } else if (change.side === 'SELL') {
-                      const index = newAsks.findIndex(a => a.price === change.price);
-                      if (change.size === '0') {
-                        if (index !== -1) newAsks.splice(index, 1);
-                      } else {
-                        if (index !== -1) {
-                          newAsks[index].size = change.size;
-                        } else {
-                          newAsks.push({ price: change.price, size: change.size });
-                        }
-                      }
+                    if (tokenIndex !== -1) {
+                      // Use already updated books if they exist, otherwise use original
+                      const currentBooks = newOrderBooks[marketId] || books;
+                      const updated = [...currentBooks];
+                      updated[tokenIndex] = {
+                        bids: book.bids || [],
+                        asks: book.asks || [],
+                        timestamp: book.timestamp,
+                      };
+                      newOrderBooks[marketId] = updated;
+                      break;
                     }
                   }
-
-                  const updated = [...books];
-                  updated[tokenIndex] = {
-                    bids: newBids,
-                    asks: newAsks,
-                    timestamp: payload.timestamp,
-                  };
-                  newOrderBooks[marketId] = updated;
                 }
-                break;
               }
-            }
+
+              return newOrderBooks;
+            });
           }
+          // Handle price_changes (incremental updates)
+          else if (message.price_changes && Array.isArray(message.price_changes)) {
+            setOrderBooks(prev => {
+              const newOrderBooks = { ...prev };
 
-          return newOrderBooks;
-        });
-      }
+              for (const change of message.price_changes) {
+                const tokenId = change.asset_id;
+
+                // Find which market this belongs to
+                for (const [marketId, books] of Object.entries(prev)) {
+                  const market = marketsRef.current.find(m => m.id === marketId);
+                  if (market?.clobTokenIds) {
+                    const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+                    const tokenIndex = tokenIds.indexOf(tokenId);
+
+                    if (tokenIndex !== -1) {
+                      const currentBooks = newOrderBooks[marketId] || books;
+                      const currentBook = currentBooks[tokenIndex];
+                      if (currentBook) {
+                        const newBids = [...currentBook.bids];
+                        const newAsks = [...currentBook.asks];
+
+                        if (change.side === 'BUY') {
+                          const index = newBids.findIndex(b => b.price === change.price);
+                          if (change.size === '0' || change.size === 0) {
+                            if (index !== -1) newBids.splice(index, 1);
+                          } else {
+                            if (index !== -1) {
+                              newBids[index].size = String(change.size);
+                            } else {
+                              newBids.push({ price: change.price, size: String(change.size) });
+                            }
+                          }
+                        } else if (change.side === 'SELL') {
+                          const index = newAsks.findIndex(a => a.price === change.price);
+                          if (change.size === '0' || change.size === 0) {
+                            if (index !== -1) newAsks.splice(index, 1);
+                          } else {
+                            if (index !== -1) {
+                              newAsks[index].size = String(change.size);
+                            } else {
+                              newAsks.push({ price: change.price, size: String(change.size) });
+                            }
+                          }
+                        }
+
+                        const updated = [...currentBooks];
+                        updated[tokenIndex] = {
+                          bids: newBids,
+                          asks: newAsks,
+                          timestamp: message.timestamp,
+                        };
+                        newOrderBooks[marketId] = updated;
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+
+              return newOrderBooks;
+            });
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.onclose = () => {
+        console.log('Market data WebSocket disconnected, reconnecting in 5s...');
+
+        // Clear ping interval
+        if ((ws as any).pingInterval) {
+          clearInterval((ws as any).pingInterval);
+        }
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, 5000);
+      };
     };
 
-    const onConnect = () => {
-      console.log('Market data WebSocket connected');
-    };
-
-    try {
-      const client = new RealTimeDataClient({ onMessage, onConnect });
-      clientRef.current = client;
-      client.connect();
-    } catch (error) {
-      console.error('Error initializing market data WebSocket:', error);
-    }
+    connectWebSocket();
 
     return () => {
-      if (clientRef.current) {
-        clientRef.current.disconnect();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
       }
     };
   }, []);
 
   // Subscribe/unsubscribe to markets based on expanded rows
   useEffect(() => {
-    const client = clientRef.current;
-    if (!client) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     // Determine which token IDs should be subscribed
     const tokenIdsToSubscribe = new Set<string>();
@@ -208,32 +252,22 @@ export default function MarketsTable() {
 
     // Unsubscribe from markets that are no longer expanded
     if (tokensToUnsubscribe.length > 0) {
-      try {
-        client.unsubscribe({
-          subscriptions: tokensToUnsubscribe.map(market => ({
-            topic: 'market',
-            market,
-          })),
-        });
-        tokensToUnsubscribe.forEach(id => subscribedMarketsRef.current.delete(id));
-      } catch (error) {
-        console.error('Error unsubscribing from markets:', error);
-      }
+      ws.send(JSON.stringify({
+        assets_ids: tokensToUnsubscribe,
+        type: 'unsubscribe',
+      }));
+      tokensToUnsubscribe.forEach(id => subscribedMarketsRef.current.delete(id));
     }
 
     // Subscribe to newly expanded markets
     if (tokensToSubscribeNew.length > 0) {
-      try {
-        client.subscribe({
-          subscriptions: tokensToSubscribeNew.map(market => ({
-            topic: 'market',
-            market,
-          })),
-        });
-        tokensToSubscribeNew.forEach(id => subscribedMarketsRef.current.add(id));
-      } catch (error) {
-        console.error('Error subscribing to markets:', error);
-      }
+      const subscribeMsg = {
+        assets_ids: tokensToSubscribeNew,
+        type: 'market',
+      };
+      console.log('Subscribing to markets:', subscribeMsg);
+      ws.send(JSON.stringify(subscribeMsg));
+      tokensToSubscribeNew.forEach(id => subscribedMarketsRef.current.add(id));
     }
   }, [expandedRows]);
 
@@ -249,21 +283,14 @@ export default function MarketsTable() {
     newExpanded.add(marketId);
     setExpandedRows(newExpanded);
 
-    // Fetch orderbook if not already loaded
+    // Initialize empty orderbooks - WebSocket will populate them
     if (!orderBooks[marketId] && clobTokenIds) {
-      try {
-        const tokenIds = JSON.parse(clobTokenIds) as string[];
-        const books = await Promise.all(
-          tokenIds.map(async (tokenId) => {
-            const response = await fetch(`/api/orderbook?token_id=${tokenId}`);
-            if (!response.ok) throw new Error('Failed to fetch orderbook');
-            return response.json();
-          })
-        );
-        setOrderBooks((prev) => ({ ...prev, [marketId]: books }));
-      } catch (error) {
-        console.error('Error fetching orderbook:', error);
-      }
+      const tokenIds = JSON.parse(clobTokenIds) as string[];
+      const emptyBooks = tokenIds.map(() => ({
+        bids: [],
+        asks: [],
+      }));
+      setOrderBooks((prev) => ({ ...prev, [marketId]: emptyBooks }));
     }
   };
 
