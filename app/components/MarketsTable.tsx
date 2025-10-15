@@ -65,26 +65,22 @@ export default function MarketsTable() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize WebSocket connection for public market data
   useEffect(() => {
     const connectWebSocket = () => {
       const ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/market');
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Send PING every 30 seconds to keep connection alive
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('PING');
           }
         }, 30000);
 
-        // Store interval ID for cleanup
         ws.pingInterval = pingInterval;
       };
 
       ws.onmessage = (event) => {
-        // Skip non-JSON messages (like PONG)
         if (typeof event.data !== 'string' || event.data === 'PONG') {
           return;
         }
@@ -92,7 +88,6 @@ export default function MarketsTable() {
         try {
           const message = JSON.parse(event.data);
 
-          // Handle array of orderbooks (initial subscription response)
           if (Array.isArray(message)) {
             setOrderBooks(prev => {
               const newOrderBooks = { ...prev };
@@ -100,7 +95,6 @@ export default function MarketsTable() {
               for (const book of message) {
                 const tokenId = book.asset_id;
 
-                // Find which market this belongs to
                 for (const [marketId, books] of Object.entries(prev)) {
                   const market = marketsRef.current.find(m => m.id === marketId);
                   if (market?.clobTokenIds) {
@@ -108,7 +102,6 @@ export default function MarketsTable() {
                     const tokenIndex = tokenIds.indexOf(tokenId);
 
                     if (tokenIndex !== -1) {
-                      // Use already updated books if they exist, otherwise use original
                       const currentBooks = newOrderBooks[marketId] || books;
                       const updated = [...currentBooks];
                       updated[tokenIndex] = {
@@ -126,7 +119,6 @@ export default function MarketsTable() {
               return newOrderBooks;
             });
           }
-          // Handle price_changes (incremental updates)
           else if (message.price_changes && Array.isArray(message.price_changes)) {
             setOrderBooks(prev => {
               const newOrderBooks = { ...prev };
@@ -134,7 +126,6 @@ export default function MarketsTable() {
               for (const change of message.price_changes) {
                 const tokenId = change.asset_id;
 
-                // Find which market this belongs to
                 for (const [marketId, books] of Object.entries(prev)) {
                   const market = marketsRef.current.find(m => m.id === marketId);
                   if (market?.clobTokenIds) {
@@ -190,12 +181,10 @@ export default function MarketsTable() {
             });
           }
         } catch (error) {
-          console.error('Error processing WebSocket message:', error);
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
       };
 
       ws.onclose = () => {
@@ -308,7 +297,6 @@ export default function MarketsTable() {
               asks: data.asks || [],
             };
           } catch (error) {
-            console.error(`Error fetching orderbook for ${tokenId}:`, error);
             return { bids: [], asks: [] };
           }
         })
