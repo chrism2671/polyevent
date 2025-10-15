@@ -654,7 +654,14 @@ export default function MarketsTable() {
                                 );
 
                                 return (
-                                  <div key={idx} className="max-h-96 overflow-y-auto">
+                                  <div key={idx} className="max-h-96 overflow-y-auto" ref={(el) => {
+                                    if (el) {
+                                      const spreadIndicator = el.querySelector('[data-spread-indicator]');
+                                      if (spreadIndicator) {
+                                        spreadIndicator.scrollIntoView({ block: 'center', behavior: 'auto' });
+                                      }
+                                    }
+                                  }}>
                                     <h4 className="font-semibold mb-2 text-sm dark:text-gray-200 sticky top-0 bg-gray-50 dark:bg-gray-800 pb-1">
                                       {outcomes[idx]} <TokenId tokenId={tokenId} />
                                     </h4>
@@ -700,7 +707,7 @@ export default function MarketsTable() {
                                       </div>
 
                                       {/* Spread indicator */}
-                                      <div className="border-t border-gray-300 dark:border-gray-600 my-4 relative">
+                                      <div className="border-t border-gray-300 dark:border-gray-600 my-4 relative" data-spread-indicator>
                                         {sortedBids.length > 0 && sortedAsks.length > 0 && (
                                           <div className="absolute left-1 -translate-y-1/2 bg-gray-50 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium">
                                             Spread: {((parseFloat(sortedAsks[0].price) - parseFloat(sortedBids[0].price)) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
