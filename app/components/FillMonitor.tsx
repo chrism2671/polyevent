@@ -60,6 +60,25 @@ export default function FillMonitor() {
     }
   }, [address]);
 
+  // Auto-start monitoring when wallet connects
+  useEffect(() => {
+    if (isConnected && address && !isMonitoring) {
+      // Check if we have stored credentials
+      const stored = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          if (data.address === address && data.credentials) {
+            // Auto-start with stored credentials
+            startMonitoring();
+          }
+        } catch {
+          // Ignore errors
+        }
+      }
+    }
+  }, [isConnected, address]);
+
   const requestNotificationPermission = async () => {
     if ('Notification' in window) {
       const permission = await Notification.requestPermission();
@@ -258,57 +277,6 @@ export default function FillMonitor() {
     setStatus('Stopped');
   };
 
-  if (!isConnected) {
-    return null; // Don't show if wallet not connected
-  }
-
-  return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <div className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 shadow-lg">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold dark:text-gray-200">Fill Monitor</h3>
-          {isMonitoring && (
-            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-          )}
-        </div>
-
-        <div className="space-y-2 text-xs">
-          {chain && chain.id !== polygon.id && (
-            <div className="text-yellow-600 dark:text-yellow-400">
-              ⚠️ Will switch to Polygon
-            </div>
-          )}
-
-          {notificationPermission === 'denied' && (
-            <div className="text-red-600 dark:text-red-400">
-              ⚠️ Enable notifications
-            </div>
-          )}
-
-          {status && (
-            <div className="text-gray-700 dark:text-gray-300">
-              {status}
-            </div>
-          )}
-
-          {isMonitoring ? (
-            <button
-              onClick={stopMonitoring}
-              className="w-full px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            >
-              Stop Monitor
-            </button>
-          ) : (
-            <button
-              onClick={startMonitoring}
-              disabled={!!status && status.includes('Error')}
-              className="w-full px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Start Monitor
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  // Run silently in the background, no UI needed
+  return null;
 }
