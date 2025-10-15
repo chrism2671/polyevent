@@ -64,8 +64,6 @@ export default function MarketsTable() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Market data WebSocket connected');
-
         // Send PING every 30 seconds to keep connection alive
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -85,7 +83,6 @@ export default function MarketsTable() {
 
         try {
           const message = JSON.parse(event.data);
-          console.log('WebSocket message received:', message);
 
           // Handle array of orderbooks (initial subscription response)
           if (Array.isArray(message)) {
@@ -194,8 +191,6 @@ export default function MarketsTable() {
       };
 
       ws.onclose = () => {
-        console.log('Market data WebSocket disconnected, reconnecting in 5s...');
-
         // Clear ping interval
         if ((ws as any).pingInterval) {
           clearInterval((ws as any).pingInterval);
@@ -261,12 +256,10 @@ export default function MarketsTable() {
 
     // Subscribe to newly expanded markets
     if (tokensToSubscribeNew.length > 0) {
-      const subscribeMsg = {
+      ws.send(JSON.stringify({
         assets_ids: tokensToSubscribeNew,
         type: 'market',
-      };
-      console.log('Subscribing to markets:', subscribeMsg);
-      ws.send(JSON.stringify(subscribeMsg));
+      }));
       tokensToSubscribeNew.forEach(id => subscribedMarketsRef.current.add(id));
     }
   }, [expandedRows]);
