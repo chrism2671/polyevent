@@ -377,43 +377,104 @@ export default function MarketsTable() {
                           </button>
                           {books ? (
                             <div className="grid grid-cols-2 gap-4 pr-6">
-                              {books.map((book, idx) => (
-                                <div key={idx}>
-                                  <h4 className="font-semibold mb-2 text-sm dark:text-gray-200">
-                                    {outcomes[idx]} Order Book
-                                  </h4>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Bids</div>
-                                      <div className="space-y-0.5">
-                                        {book.bids
-                                          .sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
-                                          .slice(0, 5)
-                                          .map((bid, i) => (
-                                          <div key={i} className="flex justify-between text-xs font-mono">
-                                            <span className="text-green-600 dark:text-green-400">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                            <span className="text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                          </div>
-                                        ))}
+                              {books.map((book, idx) => {
+                                // Sort and calculate cumulative volumes
+                                const sortedAsks = [...book.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                                const sortedBids = [...book.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+
+                                // Calculate cumulative volumes
+                                let askCumulative = 0;
+                                const asksWithCumulative = sortedAsks.map(ask => {
+                                  askCumulative += parseFloat(ask.size);
+                                  return { ...ask, cumulative: askCumulative };
+                                });
+
+                                let bidCumulative = 0;
+                                const bidsWithCumulative = sortedBids.map(bid => {
+                                  bidCumulative += parseFloat(bid.size);
+                                  return { ...bid, cumulative: bidCumulative };
+                                });
+
+                                // Reverse asks so lowest price is at bottom (closest to mid)
+                                const displayAsks = [...asksWithCumulative].reverse();
+
+                                // Calculate max values for bar widths
+                                const maxSize = Math.max(
+                                  ...sortedAsks.map(a => parseFloat(a.size)),
+                                  ...sortedBids.map(b => parseFloat(b.size))
+                                );
+                                const maxCumulative = Math.max(
+                                  askCumulative,
+                                  bidCumulative
+                                );
+
+                                return (
+                                  <div key={idx} className="max-h-96 overflow-y-auto">
+                                    <h4 className="font-semibold mb-2 text-sm dark:text-gray-200 sticky top-0 bg-gray-50 dark:bg-gray-800 pb-1">
+                                      {outcomes[idx]} Order Book
+                                    </h4>
+                                    <div className="space-y-2">
+                                      {/* Header */}
+                                      <div className="flex justify-between text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
+                                        <span className="w-20">Price</span>
+                                        <span className="w-24 text-right">Size</span>
+                                        <span className="w-24 text-right">Cumulative</span>
                                       </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">Asks</div>
+
+                                      {/* Asks (top, lowest price closest to mid) */}
                                       <div className="space-y-0.5">
-                                        {book.asks
-                                          .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
-                                          .slice(0, 5)
-                                          .map((ask, i) => (
-                                          <div key={i} className="flex justify-between text-xs font-mono">
-                                            <span className="text-red-600 dark:text-red-400">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                            <span className="text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        {displayAsks.map((ask, i) => {
+                                          const sizePercent = (parseFloat(ask.size) / maxSize) * 100;
+                                          const cumulativePercent = (ask.cumulative / maxCumulative) * 100;
+                                          return (
+                                            <div key={i} className="flex justify-between text-xs font-mono px-1">
+                                              <span className="text-red-600 dark:text-red-400 w-20">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                              <span className="w-24 text-right relative">
+                                                <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${sizePercent}%` }}></span>
+                                                <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 text-right relative">
+                                                <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativePercent}%` }}></span>
+                                                <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* Spread indicator */}
+                                      <div className="border-t border-gray-300 dark:border-gray-600 my-4 relative">
+                                        {sortedBids.length > 0 && sortedAsks.length > 0 && (
+                                          <div className="absolute left-1 -translate-y-1/2 bg-gray-50 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium">
+                                            Spread: {((parseFloat(sortedAsks[0].price) - parseFloat(sortedBids[0].price)) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                           </div>
-                                        ))}
+                                        )}
+                                      </div>
+
+                                      {/* Bids (bottom, highest price closest to mid) */}
+                                      <div className="space-y-0.5">
+                                        {bidsWithCumulative.map((bid, i) => {
+                                          const sizePercent = (parseFloat(bid.size) / maxSize) * 100;
+                                          const cumulativePercent = (bid.cumulative / maxCumulative) * 100;
+                                          return (
+                                            <div key={i} className="flex justify-between text-xs font-mono px-1">
+                                              <span className="text-green-600 dark:text-green-400 w-20">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                              <span className="w-24 text-right relative">
+                                                <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${sizePercent}%` }}></span>
+                                                <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 text-right relative">
+                                                <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativePercent}%` }}></span>
+                                                <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-center text-sm text-gray-600 dark:text-gray-400">
