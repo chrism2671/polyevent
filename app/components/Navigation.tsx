@@ -36,6 +36,16 @@ export default function Navigation() {
               >
                 Markets
               </Link>
+              <Link
+                href="/fill-monitor"
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                  pathname === '/fill-monitor'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                Fill Monitor
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
