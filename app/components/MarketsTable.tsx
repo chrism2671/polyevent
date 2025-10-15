@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +10,7 @@ import {
   SortingState,
   ColumnDef,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useData } from './DataProvider';
 import TokenId from './TokenId';
 
@@ -46,17 +47,23 @@ interface OrderBook {
   timestamp?: string;
 }
 
+interface WebSocketWithPing extends WebSocket {
+  pingInterval?: NodeJS.Timeout;
+}
+
 export default function MarketsTable() {
   const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<number>(0);
   const [orderBooks, setOrderBooks] = useState<Record<string, OrderBook[]>>({});
-  const wsRef = useRef<WebSocket | null>(null);
+  const wsRef = useRef<WebSocketWithPing | null>(null);
   const subscribedMarketsRef = useRef<Set<string>>(new Set());
   const marketsRef = useRef<PolymarketMarket[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Initialize WebSocket connection for public market data
   useEffect(() => {
@@ -73,7 +80,7 @@ export default function MarketsTable() {
         }, 30000);
 
         // Store interval ID for cleanup
-        (ws as any).pingInterval = pingInterval;
+        ws.pingInterval = pingInterval;
       };
 
       ws.onmessage = (event) => {
@@ -193,8 +200,8 @@ export default function MarketsTable() {
 
       ws.onclose = () => {
         // Clear ping interval
-        if ((ws as any).pingInterval) {
-          clearInterval((ws as any).pingInterval);
+        if (ws.pingInterval) {
+          clearInterval(ws.pingInterval);
         }
 
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -215,22 +222,22 @@ export default function MarketsTable() {
     };
   }, []);
 
-  // Subscribe/unsubscribe to markets based on expanded rows
+  // Subscribe/unsubscribe to markets based on selected market
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     // Determine which token IDs should be subscribed
     const tokenIdsToSubscribe = new Set<string>();
-    for (const marketId of expandedRows) {
-      const market = marketsRef.current.find(m => m.id === marketId);
+    if (selectedMarketId) {
+      const market = marketsRef.current.find(m => m.id === selectedMarketId);
       if (market?.clobTokenIds) {
         const tokenIds = JSON.parse(market.clobTokenIds) as string[];
         tokenIds.forEach(id => tokenIdsToSubscribe.add(id));
       }
     }
 
-    // Find tokens to unsubscribe (currently subscribed but not in expanded rows)
+    // Find tokens to unsubscribe (currently subscribed but not in selected market)
     const tokensToUnsubscribe: string[] = [];
     for (const tokenId of subscribedMarketsRef.current) {
       if (!tokenIdsToSubscribe.has(tokenId)) {
@@ -238,7 +245,7 @@ export default function MarketsTable() {
       }
     }
 
-    // Find tokens to subscribe (in expanded rows but not currently subscribed)
+    // Find tokens to subscribe (in selected market but not currently subscribed)
     const tokensToSubscribeNew: string[] = [];
     for (const tokenId of tokenIdsToSubscribe) {
       if (!subscribedMarketsRef.current.has(tokenId)) {
@@ -246,7 +253,7 @@ export default function MarketsTable() {
       }
     }
 
-    // Unsubscribe from markets that are no longer expanded
+    // Unsubscribe from markets that are no longer selected
     if (tokensToUnsubscribe.length > 0) {
       ws.send(JSON.stringify({
         assets_ids: tokensToUnsubscribe,
@@ -255,7 +262,7 @@ export default function MarketsTable() {
       tokensToUnsubscribe.forEach(id => subscribedMarketsRef.current.delete(id));
     }
 
-    // Subscribe to newly expanded markets
+    // Subscribe to newly selected market
     if (tokensToSubscribeNew.length > 0) {
       ws.send(JSON.stringify({
         assets_ids: tokensToSubscribeNew,
@@ -263,28 +270,51 @@ export default function MarketsTable() {
       }));
       tokensToSubscribeNew.forEach(id => subscribedMarketsRef.current.add(id));
     }
-  }, [expandedRows]);
+  }, [selectedMarketId]);
 
-  const toggleRow = async (marketId: string, clobTokenIds?: string) => {
-    const newExpanded = new Set(expandedRows);
-
-    if (newExpanded.has(marketId)) {
-      newExpanded.delete(marketId);
-      setExpandedRows(newExpanded);
+  const openOrderbook = async (marketId: string, clobTokenIds?: string) => {
+    // If already selected, close it
+    if (selectedMarketId === marketId) {
+      setSelectedMarketId(null);
+      setSelectedOutcomeIndex(0);
+      setOrderBooks((prev) => {
+        const newBooks = { ...prev };
+        delete newBooks[marketId];
+        return newBooks;
+      });
       return;
     }
 
-    newExpanded.add(marketId);
-    setExpandedRows(newExpanded);
+    setSelectedMarketId(marketId);
+    setSelectedOutcomeIndex(0);
 
-    // Initialize empty orderbooks - WebSocket will populate them
-    if (!orderBooks[marketId] && clobTokenIds) {
+    // Fetch initial orderbook data via REST API
+    if (clobTokenIds) {
       const tokenIds = JSON.parse(clobTokenIds) as string[];
       const emptyBooks = tokenIds.map(() => ({
         bids: [],
         asks: [],
       }));
       setOrderBooks((prev) => ({ ...prev, [marketId]: emptyBooks }));
+
+      // Fetch orderbooks for each token
+      const fetchedBooks = await Promise.all(
+        tokenIds.map(async (tokenId) => {
+          try {
+            const response = await fetch(`/api/orderbook?token_id=${tokenId}`);
+            const data = await response.json();
+            return {
+              bids: data.bids || [],
+              asks: data.asks || [],
+            };
+          } catch (error) {
+            console.error(`Error fetching orderbook for ${tokenId}:`, error);
+            return { bids: [], asks: [] };
+          }
+        })
+      );
+
+      setOrderBooks((prev) => ({ ...prev, [marketId]: fetchedBooks }));
     }
   };
 
@@ -475,6 +505,15 @@ export default function MarketsTable() {
     debugColumns: false,
   });
 
+  const { rows } = table.getRowModel();
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 33, // Fixed row height
+    overscan: 10, // Render 10 extra rows above and below viewport
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -529,23 +568,41 @@ export default function MarketsTable() {
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
+      <div
+        ref={tableContainerRef}
+        className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg"
+        style={{ height: 'calc(100vh - 200px)' }}
+      >
+        <div className="min-w-full">
+          {/* Header */}
+          <div className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                <th className="px-3 py-1.5 w-8"></th>
+              <div key={headerGroup.id} className="flex">
+                <div className="px-3 py-1.5 flex-shrink-0" style={{ width: '32px' }}></div>
                 {headerGroup.headers.map((header) => {
                   const align = (header.column.columnDef.meta as { align?: string })?.align;
+                  const colId = header.column.id;
+                  const width = colId === 'question' ? '400px'
+                    : colId === 'lastTradePrice' ? '80px'
+                    : colId === 'bestBid' ? '80px'
+                    : colId === 'bestAsk' ? '80px'
+                    : colId === 'spread' ? '80px'
+                    : colId === 'oneDayPriceChange' ? '100px'
+                    : colId === 'volume' ? '120px'
+                    : colId === 'volume24hr' ? '120px'
+                    : colId === 'liquidity' ? '120px'
+                    : colId === 'id' ? '60px'
+                    : '100px';
                   return (
-                    <th
+                    <div
                       key={header.id}
-                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                        align === 'right' ? 'text-right' : 'text-left'
+                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center flex-shrink-0 ${
+                        align === 'right' ? 'justify-end' : ''
                       }`}
+                      style={{ width }}
                       onClick={header.column.getToggleSortingHandler()}
                     >
-                      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+                      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end w-full' : ''}`}>
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
@@ -555,216 +612,265 @@ export default function MarketsTable() {
                           desc: ' 🔽',
                         }[header.column.getIsSorted() as string] ?? null}
                       </div>
-                    </th>
+                    </div>
                   );
                 })}
-              </tr>
+              </div>
             ))}
-          </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {table.getRowModel().rows.map((row) => {
+          </div>
+
+          {/* Body */}
+          <div className="bg-white dark:bg-gray-900 relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index];
               const market = row.original;
-              const isExpanded = expandedRows.has(market.id);
+              const isSelected = selectedMarketId === market.id;
               const hasOrderBook = market.clobTokenIds;
-              const books = orderBooks[market.id];
-              const outcomes = market.outcomes ? JSON.parse(market.outcomes) : ['Yes', 'No'];
 
               return (
-                <Fragment key={row.id}>
-                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
-                      {hasOrderBook && (
-                        <button
-                          onClick={() => toggleRow(market.id, market.clobTokenIds)}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
-                        >
-                          {isExpanded ? '▼' : '▶'}
-                        </button>
-                      )}
-                    </td>
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200">
+                <div
+                  key={row.id}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <div className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0" style={{ width: '32px' }}>
+                    {hasOrderBook && (
+                      <button
+                        onClick={() => openOrderbook(market.id, market.clobTokenIds)}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
+                      >
+                        {isSelected ? '◉' : '○'}
+                      </button>
+                    )}
+                  </div>
+                  {row.getVisibleCells().map((cell) => {
+                    const colId = cell.column.id;
+                    const width = colId === 'question' ? '400px'
+                      : colId === 'lastTradePrice' ? '80px'
+                      : colId === 'bestBid' ? '80px'
+                      : colId === 'bestAsk' ? '80px'
+                      : colId === 'spread' ? '80px'
+                      : colId === 'oneDayPriceChange' ? '100px'
+                      : colId === 'volume' ? '120px'
+                      : colId === 'volume24hr' ? '120px'
+                      : colId === 'liquidity' ? '120px'
+                      : colId === 'id' ? '60px'
+                      : '100px';
+                    return (
+                      <div
+                        key={cell.id}
+                        className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0"
+                        style={{ width }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                  {isExpanded && (
-                    <tr key={`${row.id}-expanded`}>
-                      <td colSpan={table.getAllColumns().length + 1} className="px-3 py-3 bg-gray-50 dark:bg-gray-800">
-                        <div className="relative">
-                          <button
-                            onClick={() => toggleRow(market.id, market.clobTokenIds)}
-                            className="absolute top-0 right-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg font-bold leading-none cursor-pointer"
-                            aria-label="Close orderbook"
-                          >
-                            ×
-                          </button>
-                          {books ? (
-                            <div className="grid grid-cols-2 gap-4 pr-6">
-                              {books.map((book, idx) => {
-                                const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
-                                const tokenId = tokenIds[idx] || '';
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
-                                // Sort and calculate cumulative volumes
-                                const sortedAsks = [...book.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-                                const sortedBids = [...book.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+      {/* Side Panel for Orderbook */}
+      {selectedMarketId && (() => {
+        const market = markets.find(m => m.id === selectedMarketId);
+        const books = orderBooks[selectedMarketId];
+        const outcomes = market?.outcomes ? JSON.parse(market.outcomes) : ['Yes', 'No'];
 
-                                // Calculate cumulative volumes and USD values
-                                let askCumulative = 0;
-                                let askCumulativeUSD = 0;
-                                const asksWithCumulative = sortedAsks.map(ask => {
-                                  const size = parseFloat(ask.size);
-                                  const price = parseFloat(ask.price);
-                                  const usd = size * price;
-                                  askCumulative += size;
-                                  askCumulativeUSD += usd;
-                                  return { ...ask, cumulative: askCumulative, usd, cumulativeUSD: askCumulativeUSD };
-                                });
+        return (
+          <div className="fixed top-0 right-0 h-screen w-2/5 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl z-50 flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start">
+              <div className="flex-1 pr-4">
+                <h3 className="font-semibold text-sm dark:text-gray-200">{market?.question}</h3>
+              </div>
+              <button
+                onClick={() => setSelectedMarketId(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl font-bold leading-none cursor-pointer"
+                aria-label="Close orderbook"
+              >
+                ×
+              </button>
+            </div>
 
-                                let bidCumulative = 0;
-                                let bidCumulativeUSD = 0;
-                                const bidsWithCumulative = sortedBids.map(bid => {
-                                  const size = parseFloat(bid.size);
-                                  const price = parseFloat(bid.price);
-                                  const usd = size * price;
-                                  bidCumulative += size;
-                                  bidCumulativeUSD += usd;
-                                  return { ...bid, cumulative: bidCumulative, usd, cumulativeUSD: bidCumulativeUSD };
-                                });
+            {/* Outcome Toggle */}
+            <div className="flex border-b border-gray-200 dark:border-gray-700">
+              {outcomes.map((outcome, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedOutcomeIndex(idx)}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    selectedOutcomeIndex === idx
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {outcome}
+                </button>
+              ))}
+            </div>
 
-                                // Reverse asks so lowest price is at bottom (closest to mid)
-                                const displayAsks = [...asksWithCumulative].reverse();
+            <div className="flex-1 overflow-y-auto p-4">
+              {books && books[selectedOutcomeIndex] ? (
+                (() => {
+                  const book = books[selectedOutcomeIndex];
+                  const tokenIds = market?.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
+                  const tokenId = tokenIds[selectedOutcomeIndex] || '';
 
-                                // Calculate max values for bar widths
-                                const maxSize = Math.max(
-                                  ...sortedAsks.map(a => parseFloat(a.size)),
-                                  ...sortedBids.map(b => parseFloat(b.size))
-                                );
-                                const maxCumulative = Math.max(
-                                  askCumulative,
-                                  bidCumulative
-                                );
-                                const maxUSD = Math.max(
-                                  ...asksWithCumulative.map(a => a.usd),
-                                  ...bidsWithCumulative.map(b => b.usd)
-                                );
-                                const maxCumulativeUSD = Math.max(
-                                  askCumulativeUSD,
-                                  bidCumulativeUSD
-                                );
+                  // Sort and calculate cumulative volumes
+                  const sortedAsks = [...book.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                  const sortedBids = [...book.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
 
-                                return (
-                                  <div key={idx} className="max-h-96 overflow-y-auto" ref={(el) => {
-                                    if (el) {
-                                      const spreadIndicator = el.querySelector('[data-spread-indicator]');
-                                      if (spreadIndicator) {
-                                        spreadIndicator.scrollIntoView({ block: 'center', behavior: 'auto' });
-                                      }
-                                    }
-                                  }}>
-                                    <h4 className="font-semibold mb-2 text-sm dark:text-gray-200 sticky top-0 bg-gray-50 dark:bg-gray-800 pb-1">
-                                      {outcomes[idx]} <TokenId tokenId={tokenId} />
-                                    </h4>
-                                    <div className="space-y-2">
-                                      {/* Header */}
-                                      <div className="flex gap-4 text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
-                                        <span className="w-20">Price</span>
-                                        <span className="w-24">Size</span>
-                                        <span className="w-24">Size USD</span>
-                                        <span className="w-24">Cumulative</span>
-                                        <span className="w-24">Cum. USD</span>
-                                      </div>
+                  // Calculate cumulative volumes and USD values
+                  let askCumulative = 0;
+                  let askCumulativeUSD = 0;
+                  const asksWithCumulative = sortedAsks.map(ask => {
+                    const size = parseFloat(ask.size);
+                    const price = parseFloat(ask.price);
+                    const usd = size * price;
+                    askCumulative += size;
+                    askCumulativeUSD += usd;
+                    return { ...ask, cumulative: askCumulative, usd, cumulativeUSD: askCumulativeUSD };
+                  });
 
-                                      {/* Asks (top, lowest price closest to mid) */}
-                                      <div className="space-y-0.5">
-                                        {displayAsks.map((ask, i) => {
-                                          const sizePercent = (parseFloat(ask.size) / maxSize) * 100;
-                                          const cumulativePercent = (ask.cumulative / maxCumulative) * 100;
-                                          const usdPercent = (ask.usd / maxUSD) * 100;
-                                          const cumulativeUSDPercent = (ask.cumulativeUSD / maxCumulativeUSD) * 100;
-                                          return (
-                                            <div key={i} className="flex gap-4 text-xs font-mono px-1">
-                                              <span className="text-red-600 dark:text-red-400 w-20">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${sizePercent}%` }}></span>
-                                                <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${usdPercent}%` }}></span>
-                                                <span className="relative text-gray-600 dark:text-gray-400">{ask.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativePercent}%` }}></span>
-                                                <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
-                                                <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
+                  let bidCumulative = 0;
+                  let bidCumulativeUSD = 0;
+                  const bidsWithCumulative = sortedBids.map(bid => {
+                    const size = parseFloat(bid.size);
+                    const price = parseFloat(bid.price);
+                    const usd = size * price;
+                    bidCumulative += size;
+                    bidCumulativeUSD += usd;
+                    return { ...bid, cumulative: bidCumulative, usd, cumulativeUSD: bidCumulativeUSD };
+                  });
 
-                                      {/* Spread indicator */}
-                                      <div className="border-t border-gray-300 dark:border-gray-600 my-4 relative" data-spread-indicator>
-                                        {sortedBids.length > 0 && sortedAsks.length > 0 && (
-                                          <div className="absolute left-1 -translate-y-1/2 bg-gray-50 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium">
-                                            Spread: {((parseFloat(sortedAsks[0].price) - parseFloat(sortedBids[0].price)) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                          </div>
-                                        )}
-                                      </div>
+                  // Reverse asks so lowest price is at bottom (closest to mid)
+                  const displayAsks = [...asksWithCumulative].reverse();
 
-                                      {/* Bids (bottom, highest price closest to mid) */}
-                                      <div className="space-y-0.5">
-                                        {bidsWithCumulative.map((bid, i) => {
-                                          const sizePercent = (parseFloat(bid.size) / maxSize) * 100;
-                                          const cumulativePercent = (bid.cumulative / maxCumulative) * 100;
-                                          const usdPercent = (bid.usd / maxUSD) * 100;
-                                          const cumulativeUSDPercent = (bid.cumulativeUSD / maxCumulativeUSD) * 100;
-                                          return (
-                                            <div key={i} className="flex gap-4 text-xs font-mono px-1">
-                                              <span className="text-green-600 dark:text-green-400 w-20">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${sizePercent}%` }}></span>
-                                                <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${usdPercent}%` }}></span>
-                                                <span className="relative text-gray-600 dark:text-gray-400">{bid.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativePercent}%` }}></span>
-                                                <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                              <span className="w-24 relative">
-                                                <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
-                                                <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-                              Loading orderbook...
+                  // Calculate max values for bar widths
+                  const maxSize = Math.max(
+                    ...sortedAsks.map(a => parseFloat(a.size)),
+                    ...sortedBids.map(b => parseFloat(b.size))
+                  );
+                  const maxCumulative = Math.max(
+                    askCumulative,
+                    bidCumulative
+                  );
+                  const maxUSD = Math.max(
+                    ...asksWithCumulative.map(a => a.usd),
+                    ...bidsWithCumulative.map(b => b.usd)
+                  );
+                  const maxCumulativeUSD = Math.max(
+                    askCumulativeUSD,
+                    bidCumulativeUSD
+                  );
+
+                  return (
+                    <div>
+                      <h4 className="font-semibold mb-2 text-sm dark:text-gray-200">
+                        {outcomes[selectedOutcomeIndex]} <TokenId tokenId={tokenId} />
+                      </h4>
+                      <div className="space-y-2">
+                        {/* Header */}
+                        <div className="flex gap-4 text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
+                          <span className="w-20">Price</span>
+                          <span className="w-24">Size</span>
+                          <span className="w-24">Size USD</span>
+                          <span className="w-24">Cumulative</span>
+                          <span className="w-24">Cum. USD</span>
+                        </div>
+
+                        {/* Asks (top, lowest price closest to mid) */}
+                        <div className="space-y-0.5">
+                          {displayAsks.map((ask, i) => {
+                            const sizePercent = (parseFloat(ask.size) / maxSize) * 100;
+                            const cumulativePercent = (ask.cumulative / maxCumulative) * 100;
+                            const usdPercent = (ask.usd / maxUSD) * 100;
+                            const cumulativeUSDPercent = (ask.cumulativeUSD / maxCumulativeUSD) * 100;
+                            return (
+                              <div key={i} className="flex gap-4 text-xs font-mono px-1">
+                                <span className="text-red-600 dark:text-red-400 w-20">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${sizePercent}%` }}></span>
+                                  <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${usdPercent}%` }}></span>
+                                  <span className="relative text-gray-600 dark:text-gray-400">{ask.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativePercent}%` }}></span>
+                                  <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
+                                  <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Spread indicator */}
+                        <div className="border-t border-gray-300 dark:border-gray-600 my-4 relative" data-spread-indicator>
+                          {sortedBids.length > 0 && sortedAsks.length > 0 && (
+                            <div className="absolute left-1 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 font-medium">
+                              Spread: {((parseFloat(sortedAsks[0].price) - parseFloat(sortedBids[0].price)) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                             </div>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+
+                        {/* Bids (bottom, highest price closest to mid) */}
+                        <div className="space-y-0.5">
+                          {bidsWithCumulative.map((bid, i) => {
+                            const sizePercent = (parseFloat(bid.size) / maxSize) * 100;
+                            const cumulativePercent = (bid.cumulative / maxCumulative) * 100;
+                            const usdPercent = (bid.usd / maxUSD) * 100;
+                            const cumulativeUSDPercent = (bid.cumulativeUSD / maxCumulativeUSD) * 100;
+                            return (
+                              <div key={i} className="flex gap-4 text-xs font-mono px-1">
+                                <span className="text-green-600 dark:text-green-400 w-20">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${sizePercent}%` }}></span>
+                                  <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${usdPercent}%` }}></span>
+                                  <span className="relative text-gray-600 dark:text-gray-400">{bid.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativePercent}%` }}></span>
+                                  <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                                <span className="w-24 relative">
+                                  <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
+                                  <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                  Loading orderbook...
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
+

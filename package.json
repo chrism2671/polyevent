@@ -12,6 +12,7 @@
     "@polymarket/real-time-data-client": "^1.4.0",
     "@tanstack/react-query": "^5.90.3",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.12",
     "next": "15.5.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",
