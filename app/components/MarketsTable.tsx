@@ -605,17 +605,27 @@ export default function MarketsTable() {
                                 const sortedAsks = [...book.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
                                 const sortedBids = [...book.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
 
-                                // Calculate cumulative volumes
+                                // Calculate cumulative volumes and USD values
                                 let askCumulative = 0;
+                                let askCumulativeUSD = 0;
                                 const asksWithCumulative = sortedAsks.map(ask => {
-                                  askCumulative += parseFloat(ask.size);
-                                  return { ...ask, cumulative: askCumulative };
+                                  const size = parseFloat(ask.size);
+                                  const price = parseFloat(ask.price);
+                                  const usd = size * price;
+                                  askCumulative += size;
+                                  askCumulativeUSD += usd;
+                                  return { ...ask, cumulative: askCumulative, usd, cumulativeUSD: askCumulativeUSD };
                                 });
 
                                 let bidCumulative = 0;
+                                let bidCumulativeUSD = 0;
                                 const bidsWithCumulative = sortedBids.map(bid => {
-                                  bidCumulative += parseFloat(bid.size);
-                                  return { ...bid, cumulative: bidCumulative };
+                                  const size = parseFloat(bid.size);
+                                  const price = parseFloat(bid.price);
+                                  const usd = size * price;
+                                  bidCumulative += size;
+                                  bidCumulativeUSD += usd;
+                                  return { ...bid, cumulative: bidCumulative, usd, cumulativeUSD: bidCumulativeUSD };
                                 });
 
                                 // Reverse asks so lowest price is at bottom (closest to mid)
@@ -630,6 +640,14 @@ export default function MarketsTable() {
                                   askCumulative,
                                   bidCumulative
                                 );
+                                const maxUSD = Math.max(
+                                  ...asksWithCumulative.map(a => a.usd),
+                                  ...bidsWithCumulative.map(b => b.usd)
+                                );
+                                const maxCumulativeUSD = Math.max(
+                                  askCumulativeUSD,
+                                  bidCumulativeUSD
+                                );
 
                                 return (
                                   <div key={idx} className="max-h-96 overflow-y-auto">
@@ -638,10 +656,12 @@ export default function MarketsTable() {
                                     </h4>
                                     <div className="space-y-2">
                                       {/* Header */}
-                                      <div className="flex justify-between text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
+                                      <div className="flex gap-4 text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
                                         <span className="w-20">Price</span>
-                                        <span className="w-24 text-right">Size</span>
-                                        <span className="w-24 text-right">Cumulative</span>
+                                        <span className="w-24">Size</span>
+                                        <span className="w-24">Size USD</span>
+                                        <span className="w-24">Cumulative</span>
+                                        <span className="w-24">Cum. USD</span>
                                       </div>
 
                                       {/* Asks (top, lowest price closest to mid) */}
@@ -649,16 +669,26 @@ export default function MarketsTable() {
                                         {displayAsks.map((ask, i) => {
                                           const sizePercent = (parseFloat(ask.size) / maxSize) * 100;
                                           const cumulativePercent = (ask.cumulative / maxCumulative) * 100;
+                                          const usdPercent = (ask.usd / maxUSD) * 100;
+                                          const cumulativeUSDPercent = (ask.cumulativeUSD / maxCumulativeUSD) * 100;
                                           return (
-                                            <div key={i} className="flex justify-between text-xs font-mono px-1">
+                                            <div key={i} className="flex gap-4 text-xs font-mono px-1">
                                               <span className="text-red-600 dark:text-red-400 w-20">{(parseFloat(ask.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                              <span className="w-24 text-right relative">
+                                              <span className="w-24 relative">
                                                 <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${sizePercent}%` }}></span>
                                                 <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(ask.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                                               </span>
-                                              <span className="w-24 text-right relative">
+                                              <span className="w-24 relative">
+                                                <span className="absolute inset-0 bg-red-100 dark:bg-red-900/50" style={{ width: `${usdPercent}%` }}></span>
+                                                <span className="relative text-gray-600 dark:text-gray-400">{ask.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 relative">
                                                 <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativePercent}%` }}></span>
                                                 <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 relative">
+                                                <span className="absolute inset-0 bg-red-50 dark:bg-red-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
+                                                <span className="relative text-gray-500 dark:text-gray-500">{ask.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                                               </span>
                                             </div>
                                           );
@@ -679,16 +709,26 @@ export default function MarketsTable() {
                                         {bidsWithCumulative.map((bid, i) => {
                                           const sizePercent = (parseFloat(bid.size) / maxSize) * 100;
                                           const cumulativePercent = (bid.cumulative / maxCumulative) * 100;
+                                          const usdPercent = (bid.usd / maxUSD) * 100;
+                                          const cumulativeUSDPercent = (bid.cumulativeUSD / maxCumulativeUSD) * 100;
                                           return (
-                                            <div key={i} className="flex justify-between text-xs font-mono px-1">
+                                            <div key={i} className="flex gap-4 text-xs font-mono px-1">
                                               <span className="text-green-600 dark:text-green-400 w-20">{(parseFloat(bid.price) * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                              <span className="w-24 text-right relative">
+                                              <span className="w-24 relative">
                                                 <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${sizePercent}%` }}></span>
                                                 <span className="relative text-gray-600 dark:text-gray-400">{parseFloat(bid.size).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                                               </span>
-                                              <span className="w-24 text-right relative">
+                                              <span className="w-24 relative">
+                                                <span className="absolute inset-0 bg-green-100 dark:bg-green-900/50" style={{ width: `${usdPercent}%` }}></span>
+                                                <span className="relative text-gray-600 dark:text-gray-400">{bid.usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 relative">
                                                 <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativePercent}%` }}></span>
                                                 <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulative.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                              </span>
+                                              <span className="w-24 relative">
+                                                <span className="absolute inset-0 bg-green-50 dark:bg-green-900/30" style={{ width: `${cumulativeUSDPercent}%` }}></span>
+                                                <span className="relative text-gray-500 dark:text-gray-500">{bid.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                                               </span>
                                             </div>
                                           );
