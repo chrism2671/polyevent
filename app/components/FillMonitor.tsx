@@ -104,15 +104,16 @@ export default function FillMonitor() {
     }
 
     try {
+      console.log('🚀 STARTING FILL MONITOR FOR ADDRESS:', address);
       let credentials: ApiCredentials | null = null;
 
-      // Check localStorage first
       const stored = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
       if (stored) {
         try {
           const data = JSON.parse(stored);
           if (data.address === address && data.credentials) {
             credentials = data.credentials;
+            console.log('✅ Using stored credentials');
             setStatus('Using stored credentials...');
           }
         } catch {
@@ -191,24 +192,31 @@ export default function FillMonitor() {
       shouldReconnectRef.current = true;
 
       const connectWithReconnect = () => {
-        // Create message handler for fill events
         const onMessage = (message: Message) => {
-          console.log('Received message:', message);
+          console.log('============ USER CHANNEL MESSAGE ============');
+          console.log('Full message object:', JSON.stringify(message, null, 2));
+          console.log('Message topic:', message.topic);
+          console.log('Message type:', message.type);
+          console.log('Message payload:', message.payload);
+          console.log('============================================');
 
-          // Handle fill events
           if (message.topic === 'clob_user' && message.type === 'trade') {
+            console.log('✅ TRADE MESSAGE DETECTED!');
             const payload = message.payload as any;
             new Notification('Order Filled! 🎉', {
               body: `Market: ${payload.market || 'Unknown'}\nPrice: ${payload.price || 'N/A'}\nSize: ${payload.size || 'N/A'}`,
               icon: '/og-image.png',
             });
+          } else {
+            console.log(`❌ Not a trade: topic=${message.topic}, type=${message.type}`);
           }
         };
 
-        // Create connect handler to subscribe
         const onConnect = (client: RealTimeDataClient) => {
+          console.log('🟢 WEBSOCKET CONNECTED');
           setStatus('Monitoring active');
-          client.subscribe({
+
+          const subscription = {
             subscriptions: [
               {
                 topic: 'clob_user',
@@ -220,21 +228,27 @@ export default function FillMonitor() {
                 },
               },
             ],
-          });
+          };
+
+          console.log('📤 SUBSCRIBING TO USER CHANNEL:', JSON.stringify(subscription, null, 2));
+          client.subscribe(subscription);
+          console.log('✅ SUBSCRIPTION SENT');
         };
 
         try {
-          // Disconnect existing client if any
           if (clientRef.current) {
+            console.log('🔴 Disconnecting existing client');
             clientRef.current.disconnect();
           }
 
-          // Create and connect the client
+          console.log('🔵 Creating new RealTimeDataClient');
           const client = new RealTimeDataClient({ onMessage, onConnect });
           clientRef.current = client;
+
+          console.log('🔌 Calling client.connect()...');
           client.connect();
         } catch (error) {
-          console.error('WebSocket connection error:', error);
+          console.error('❌ WebSocket connection error:', error);
 
           // Attempt reconnection if should reconnect
           if (shouldReconnectRef.current) {
