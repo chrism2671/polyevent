@@ -192,7 +192,7 @@ export default function FillMonitor() {
       shouldReconnectRef.current = true;
 
       const connectWithReconnect = () => {
-        const onMessage = (message: Message) => {
+        const onMessage = (_client: RealTimeDataClient, message: Message) => {
           console.log('============ USER CHANNEL MESSAGE ============');
           console.log('Full message object:', JSON.stringify(message, null, 2));
           console.log('Message topic:', message.topic);
@@ -202,7 +202,7 @@ export default function FillMonitor() {
 
           if (message.topic === 'clob_user' && message.type === 'trade') {
             console.log('✅ TRADE MESSAGE DETECTED!');
-            const payload = message.payload as any;
+            const payload = message.payload as Record<string, unknown>;
             new Notification('Order Filled! 🎉', {
               body: `Market: ${payload.market || 'Unknown'}\nPrice: ${payload.price || 'N/A'}\nSize: ${payload.size || 'N/A'}`,
               icon: '/og-image.png',
@@ -215,6 +215,11 @@ export default function FillMonitor() {
         const onConnect = (client: RealTimeDataClient) => {
           console.log('🟢 WEBSOCKET CONNECTED');
           setStatus('Monitoring active');
+
+          if (!credentials) {
+            console.error('❌ No credentials available');
+            return;
+          }
 
           const subscription = {
             subscriptions: [

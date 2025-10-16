@@ -67,7 +67,7 @@ export default function MarketsTable() {
 
   useEffect(() => {
     const connectWebSocket = () => {
-      const ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/market');
+      const ws = new WebSocket('wss://ws-subscriptions-clob.polymarket.com/ws/market') as WebSocketWithPing;
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -180,7 +180,7 @@ export default function MarketsTable() {
               return newOrderBooks;
             });
           }
-        } catch (error) {
+        } catch {
         }
       };
 
@@ -296,7 +296,7 @@ export default function MarketsTable() {
               bids: data.bids || [],
               asks: data.asks || [],
             };
-          } catch (error) {
+          } catch {
             return { bids: [], asks: [] };
           }
         })
@@ -452,6 +452,12 @@ export default function MarketsTable() {
         meta: { align: 'right' },
       },
       {
+        accessorKey: 'conditionId',
+        header: 'Condition ID',
+        cell: (info) => <TokenId tokenId={info.getValue() as string} />,
+        sortingFn: 'alphanumeric',
+      },
+      {
         accessorKey: 'id',
         header: 'ID',
         cell: (info) => <div className="text-right">{info.getValue() as string}</div>,
@@ -566,7 +572,7 @@ export default function MarketsTable() {
           <div className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
             {table.getHeaderGroups().map((headerGroup) => (
               <div key={headerGroup.id} className="flex">
-                <div className="px-3 py-1.5 flex-shrink-0" style={{ width: '32px' }}></div>
+                <div className="px-2 py-1.5 flex-shrink-0" style={{ width: '50px' }}></div>
                 {headerGroup.headers.map((header) => {
                   const align = (header.column.columnDef.meta as { align?: string })?.align;
                   const colId = header.column.id;
@@ -579,6 +585,7 @@ export default function MarketsTable() {
                     : colId === 'volume' ? '120px'
                     : colId === 'volume24hr' ? '120px'
                     : colId === 'liquidity' ? '120px'
+                    : colId === 'conditionId' ? '100px'
                     : colId === 'id' ? '60px'
                     : '100px';
                   return (
@@ -627,13 +634,17 @@ export default function MarketsTable() {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <div className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0" style={{ width: '32px' }}>
+                  <div className="px-2 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0" style={{ width: '50px' }}>
                     {hasOrderBook && (
                       <button
                         onClick={() => openOrderbook(market.id, market.clobTokenIds)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
+                        className={`px-1.5 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                        }`}
                       >
-                        {isSelected ? '◉' : '○'}
+                        LOB
                       </button>
                     )}
                   </div>
@@ -648,6 +659,7 @@ export default function MarketsTable() {
                       : colId === 'volume' ? '120px'
                       : colId === 'volume24hr' ? '120px'
                       : colId === 'liquidity' ? '120px'
+                      : colId === 'conditionId' ? '100px'
                       : colId === 'id' ? '60px'
                       : '100px';
                     return (
@@ -690,7 +702,7 @@ export default function MarketsTable() {
 
             {/* Outcome Toggle */}
             <div className="flex border-b border-gray-200 dark:border-gray-700">
-              {outcomes.map((outcome, idx) => (
+              {outcomes.map((outcome: string, idx: number) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedOutcomeIndex(idx)}
@@ -703,6 +715,25 @@ export default function MarketsTable() {
                   {outcome}
                 </button>
               ))}
+            </div>
+
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+              <div className="flex flex-col gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Condition ID:</span>
+                  <TokenId tokenId={market?.conditionId || ''} />
+                </div>
+                {books && books[selectedOutcomeIndex] && (() => {
+                  const tokenIds = market?.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
+                  const tokenId = tokenIds[selectedOutcomeIndex] || '';
+                  return tokenId ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 dark:text-gray-400 font-medium">Token ID:</span>
+                      <TokenId tokenId={tokenId} />
+                    </div>
+                  ) : null;
+                })()}
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">

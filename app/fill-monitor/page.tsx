@@ -24,16 +24,16 @@ export default function FillMonitorPage() {
             <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">How to Enable</h2>
             <ol className="list-decimal list-inside space-y-3 text-gray-700 dark:text-gray-300">
               <li>
-                <strong>Connect your wallet</strong> - Click "Connect Wallet" in the navigation bar and connect your Polygon wallet
+                <strong>Connect your wallet</strong> - Click &ldquo;Connect Wallet&rdquo; in the navigation bar and connect your Polygon wallet
               </li>
               <li>
-                <strong>Sign the message</strong> - You'll be prompted to sign a message to authenticate (one-time setup)
+                <strong>Sign the message</strong> - You&apos;ll be prompted to sign a message to authenticate (one-time setup)
               </li>
               <li>
                 <strong>Enable notifications</strong> - Allow browser notifications when prompted
               </li>
               <li>
-                <strong>That's it!</strong> - The monitor will automatically start and continue running in the background
+                <strong>That&apos;s it!</strong> - The monitor will automatically start and continue running in the background
               </li>
             </ol>
           </section>
@@ -45,7 +45,7 @@ export default function FillMonitorPage() {
                 <span className="text-blue-600 dark:text-blue-400">•</span>
                 <p>
                   <strong>External wallet required:</strong> This feature only works when using Polymarket with an external wallet
-                  (like MetaMask, Rainbow, etc.). It does not work with Polymarket's built-in wallet.
+                  (like MetaMask, Rainbow, etc.). It does not work with Polymarket&apos;s built-in wallet.
                 </p>
               </div>
               <div className="flex items-start gap-2">
@@ -69,7 +69,7 @@ export default function FillMonitorPage() {
               <div className="flex items-start gap-2">
                 <span className="text-blue-600 dark:text-blue-400">•</span>
                 <p>
-                  <strong>No re-signing needed:</strong> After the initial setup, credentials are stored locally and you won't need to sign again.
+                  <strong>No re-signing needed:</strong> After the initial setup, credentials are stored locally and you won&apos;t need to sign again.
                 </p>
               </div>
             </div>
@@ -79,10 +79,10 @@ export default function FillMonitorPage() {
             <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Privacy & Security</h2>
             <p className="text-gray-700 dark:text-gray-300 mb-3">
               Your API credentials are stored locally in your browser and never sent to any third-party servers.
-              The fill monitor connects directly to Polymarket's official WebSocket API using your authenticated credentials.
+              The fill monitor connects directly to Polymarket&apos;s official WebSocket API using your authenticated credentials.
             </p>
             <p className="text-gray-700 dark:text-gray-300">
-              To disable: Simply disconnect your wallet and clear your browser's local storage for this site.
+              To disable: Simply disconnect your wallet and clear your browser&apos;s local storage for this site.
             </p>
           </section>
         </div>
