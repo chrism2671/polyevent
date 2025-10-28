@@ -484,11 +484,23 @@ export default function MarketsTable() {
       const searchTerms = String(filterValue).toLowerCase().split(' ').filter(term => term.length > 0);
       if (searchTerms.length === 0) return true;
 
+      // Parse token IDs if available
+      let tokenIds: string[] = [];
+      if (row.original.clobTokenIds) {
+        try {
+          tokenIds = JSON.parse(row.original.clobTokenIds) as string[];
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
       // Get all searchable text from the row
       const searchableText = [
         row.original.question,
         row.original.outcomes,
         row.original.id,
+        row.original.conditionId,
+        ...tokenIds,
       ].join(' ').toLowerCase();
 
       // Check if all search terms are present
