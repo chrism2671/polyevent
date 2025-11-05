@@ -364,7 +364,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'lastTradePrice',
         header: 'Last Price',
-        accessorFn: (row) => row.lastTradePrice ?? 0,
+        accessorFn: (row) => Number(row.lastTradePrice ?? 0),
         cell: (info) => {
           const price = info.getValue() as number;
           return <div className="text-right font-mono">{(price * 100).toFixed(1)}</div>;
@@ -375,7 +375,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'bestBid',
         header: 'Bid',
-        accessorFn: (row) => row.bestBid ?? 0,
+        accessorFn: (row) => Number(row.bestBid ?? 0),
         cell: (info) => {
           const bid = info.getValue() as number;
           return <div className="text-right font-mono">{(bid * 100).toFixed(1)}</div>;
@@ -386,7 +386,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'bestAsk',
         header: 'Ask',
-        accessorFn: (row) => row.bestAsk ?? 0,
+        accessorFn: (row) => Number(row.bestAsk ?? 0),
         cell: (info) => {
           const ask = info.getValue() as number;
           return <div className="text-right font-mono">{(ask * 100).toFixed(1)}</div>;
@@ -397,7 +397,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'spread',
         header: 'Spread',
-        accessorFn: (row) => (row.bestAsk ?? 0) - (row.bestBid ?? 0),
+        accessorFn: (row) => Number(row.bestAsk ?? 0) - Number(row.bestBid ?? 0),
         cell: (info) => {
           const spread = info.getValue() as number;
           return <div className="text-right font-mono">{(spread * 100).toFixed(1)}</div>;
@@ -408,7 +408,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'oneDayPriceChange',
         header: '24h Change',
-        accessorFn: (row) => row.oneDayPriceChange ?? 0,
+        accessorFn: (row) => Number(row.oneDayPriceChange ?? 0),
         cell: (info) => {
           const change = info.getValue() as number;
           const changePercent = (change * 100).toFixed(1);
@@ -421,7 +421,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'volume',
         header: 'Volume',
-        accessorFn: (row) => row.volume ?? 0,
+        accessorFn: (row) => Number(row.volume ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -432,7 +432,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'volume24hr',
         header: '24h Volume',
-        accessorFn: (row) => row.volume24hr ?? 0,
+        accessorFn: (row) => Number(row.volume24hr ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -443,7 +443,7 @@ export default function MarketsTable() {
       {
         accessorKey: 'liquidity',
         header: 'Liquidity',
-        accessorFn: (row) => row.liquidity ?? 0,
+        accessorFn: (row) => Number(row.liquidity ?? 0),
         cell: (info) => {
           const liquidity = info.getValue() as number;
           return <div className="text-right">${Math.round(liquidity).toLocaleString()}</div>;

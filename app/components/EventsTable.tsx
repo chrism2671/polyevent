@@ -57,7 +57,7 @@ export default function EventsTable() {
       {
         accessorKey: 'volume',
         header: 'Volume',
-        accessorFn: (row) => row.volume ?? 0,
+        accessorFn: (row) => Number(row.volume ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -68,7 +68,7 @@ export default function EventsTable() {
       {
         accessorKey: 'volume24hr',
         header: '24h Volume',
-        accessorFn: (row) => row.volume24hr ?? 0,
+        accessorFn: (row) => Number(row.volume24hr ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -79,7 +79,7 @@ export default function EventsTable() {
       {
         accessorKey: 'volume1wk',
         header: '1wk Volume',
-        accessorFn: (row) => row.volume1wk ?? 0,
+        accessorFn: (row) => Number(row.volume1wk ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -90,7 +90,7 @@ export default function EventsTable() {
       {
         accessorKey: 'volume1mo',
         header: '1mo Volume',
-        accessorFn: (row) => row.volume1mo ?? 0,
+        accessorFn: (row) => Number(row.volume1mo ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -101,7 +101,7 @@ export default function EventsTable() {
       {
         accessorKey: 'volume1yr',
         header: '1yr Volume',
-        accessorFn: (row) => row.volume1yr ?? 0,
+        accessorFn: (row) => Number(row.volume1yr ?? 0),
         cell: (info) => {
           const volume = info.getValue() as number;
           return <div className="text-right">${Math.round(volume).toLocaleString()}</div>;
@@ -112,7 +112,7 @@ export default function EventsTable() {
       {
         accessorKey: 'liquidity',
         header: 'Liquidity',
-        accessorFn: (row) => row.liquidity ?? 0,
+        accessorFn: (row) => Number(row.liquidity ?? 0),
         cell: (info) => {
           const liquidity = info.getValue() as number;
           return <div className="text-right">${Math.round(liquidity).toLocaleString()}</div>;
@@ -123,7 +123,7 @@ export default function EventsTable() {
       {
         accessorKey: 'liquidityClob',
         header: 'Liquidity CLOB',
-        accessorFn: (row) => row.liquidityClob ?? 0,
+        accessorFn: (row) => Number(row.liquidityClob ?? 0),
         cell: (info) => {
           const liquidity = info.getValue() as number;
           return <div className="text-right">${Math.round(liquidity).toLocaleString()}</div>;
@@ -134,7 +134,7 @@ export default function EventsTable() {
       {
         accessorKey: 'competitive',
         header: 'Competitive',
-        accessorFn: (row) => row.competitive ?? 0,
+        accessorFn: (row) => Number(row.competitive ?? 0),
         cell: (info) => {
           const comp = info.getValue() as number;
           return <div className="text-right">{comp.toFixed(2)}</div>;
@@ -145,7 +145,7 @@ export default function EventsTable() {
       {
         accessorKey: 'commentCount',
         header: 'Comments',
-        accessorFn: (row) => row.commentCount ?? 0,
+        accessorFn: (row) => Number(row.commentCount ?? 0),
         cell: (info) => <div className="text-right">{info.getValue() as number}</div>,
         sortingFn: 'basic',
         meta: { align: 'right' },
