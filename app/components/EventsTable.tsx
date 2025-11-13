@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -16,7 +16,26 @@ export default function EventsTable() {
   const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      setGlobalFilter(searchInput);
+    }, 300);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchInput]);
 
   const filteredEvents = useMemo(() => {
     if (includeZeroVolume) {
@@ -262,8 +281,8 @@ export default function EventsTable() {
         <div className="flex items-center gap-3 mb-2">
           <input
             type="text"
-            value={globalFilter ?? ''}
-            onChange={(e) => setGlobalFilter(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search events... (use ! to exclude, e.g. !sports)"
             className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200"
           />

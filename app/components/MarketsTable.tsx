@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -56,7 +56,9 @@ export default function MarketsTable() {
   const { events, loading, error, progress } = useData();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'volume24hr', desc: true }]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [includeZeroVolume, setIncludeZeroVolume] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<number>(0);
   const [orderBooks, setOrderBooks] = useState<Record<string, OrderBook[]>>({});
@@ -65,6 +67,23 @@ export default function MarketsTable() {
   const marketsRef = useRef<PolymarketMarket[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      setGlobalFilter(searchInput);
+    }, 300);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchInput]);
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -586,8 +605,8 @@ export default function MarketsTable() {
         <div className="flex items-center gap-3 mb-2">
           <input
             type="text"
-            value={globalFilter ?? ''}
-            onChange={(e) => setGlobalFilter(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search markets... (use ! to exclude, e.g. !sports)"
             className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200"
           />
