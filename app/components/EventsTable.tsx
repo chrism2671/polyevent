@@ -22,7 +22,7 @@ export default function EventsTable() {
     if (includeZeroVolume) {
       return events;
     }
-    return events.filter(e => (e.volume ?? 0) > 0);
+    return events.filter(e => (e.volume24hr ?? 0) > 0);
   }, [events, includeZeroVolume]);
 
   const columns = useMemo<ColumnDef<PolymarketEvent>[]>(
@@ -156,23 +156,17 @@ export default function EventsTable() {
         accessorFn: (row) => row.tags?.map(t => t.label).join(' ') ?? '',
         cell: (info) => {
           const tags = info.row.original.tags as Tag[];
-          if (!tags || tags.length === 0) return '-';
+          if (!tags || tags.length === 0) return <span className="text-gray-400 dark:text-gray-600">-</span>;
           return (
-            <div className="flex flex-wrap gap-0.5">
-              {tags.slice(0, 3).map((tag) => (
+            <div className="flex gap-1 overflow-x-auto whitespace-nowrap">
+              {tags.map((tag) => (
                 <span
                   key={tag.id}
-                  className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs"
-                  title={tags.map(t => t.label).join(', ')}
+                  className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs flex-shrink-0"
                 >
                   {tag.label}
                 </span>
               ))}
-              {tags.length > 3 && (
-                <span className="px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  +{tags.length - 3}
-                </span>
-              )}
             </div>
           );
         },
@@ -209,6 +203,35 @@ export default function EventsTable() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: (row, columnId, filterValue) => {
+      const searchTerms = String(filterValue).toLowerCase().split(' ').filter(term => term.length > 0);
+      if (searchTerms.length === 0) return true;
+
+      // Get tag labels
+      const tagLabels = row.original.tags?.map(t => t.label) ?? [];
+
+      // Get all searchable text from the row
+      const searchableText = [
+        row.original.title,
+        row.original.description,
+        row.original.slug,
+        row.original.ticker,
+        row.original.id,
+        ...tagLabels,
+      ].join(' ').toLowerCase();
+
+      // Separate inclusion and exclusion terms
+      const includeTerms = searchTerms.filter(term => !term.startsWith('!'));
+      const excludeTerms = searchTerms.filter(term => term.startsWith('!')).map(term => term.slice(1));
+
+      // Check if all inclusion terms are present
+      const includesMatch = includeTerms.every(term => searchableText.includes(term));
+
+      // Check if any exclusion terms are present (should NOT be present)
+      const excludesMatch = excludeTerms.every(term => !searchableText.includes(term));
+
+      return includesMatch && excludesMatch;
+    },
     debugTable: false,
     debugHeaders: false,
     debugColumns: false,
@@ -241,7 +264,7 @@ export default function EventsTable() {
             type="text"
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search events..."
+            placeholder="Search events... (use ! to exclude, e.g. !sports)"
             className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200"
           />
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">

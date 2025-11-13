@@ -11,7 +11,7 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useData } from './DataProvider';
+import { useData, Tag } from './DataProvider';
 import TokenId from './TokenId';
 
 interface PolymarketMarket {
@@ -33,6 +33,7 @@ interface PolymarketMarket {
   liquidity: number;
   liquidityClob: number;
   oneDayPriceChange: number;
+  tags?: Tag[];
   [key: string]: unknown;
 }
 
@@ -315,6 +316,7 @@ export default function MarketsTable() {
           allMarkets.push({
             ...market,
             eventSlug: event.slug,
+            tags: event.tags,
           } as PolymarketMarket);
         }
       }
@@ -331,7 +333,7 @@ export default function MarketsTable() {
     if (includeZeroVolume) {
       return markets;
     }
-    return markets.filter(m => (m.volume ?? 0) > 0);
+    return markets.filter(m => (m.volume24hr ?? 0) > 0);
   }, [markets, includeZeroVolume]);
 
   const columns = useMemo<ColumnDef<PolymarketMarket>[]>(
@@ -358,6 +360,27 @@ export default function MarketsTable() {
             >
               {question}
             </a>
+          );
+        },
+      },
+      {
+        accessorKey: 'tags',
+        header: 'Tags',
+        accessorFn: (row) => row.tags?.map(t => t.label).join(' ') ?? '',
+        cell: (info) => {
+          const tags = info.row.original.tags;
+          if (!tags || tags.length === 0) return <span className="text-gray-400 dark:text-gray-600">-</span>;
+          return (
+            <div className="flex gap-1 overflow-x-auto whitespace-nowrap">
+              {tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs flex-shrink-0"
+                >
+                  {tag.label}
+                </span>
+              ))}
+            </div>
           );
         },
       },
@@ -494,6 +517,9 @@ export default function MarketsTable() {
         }
       }
 
+      // Get tag labels
+      const tagLabels = row.original.tags?.map(t => t.label) ?? [];
+
       // Get all searchable text from the row
       const searchableText = [
         row.original.question,
@@ -501,10 +527,20 @@ export default function MarketsTable() {
         row.original.id,
         row.original.conditionId,
         ...tokenIds,
+        ...tagLabels,
       ].join(' ').toLowerCase();
 
-      // Check if all search terms are present
-      return searchTerms.every(term => searchableText.includes(term));
+      // Separate inclusion and exclusion terms
+      const includeTerms = searchTerms.filter(term => !term.startsWith('!'));
+      const excludeTerms = searchTerms.filter(term => term.startsWith('!')).map(term => term.slice(1));
+
+      // Check if all inclusion terms are present
+      const includesMatch = includeTerms.every(term => searchableText.includes(term));
+
+      // Check if any exclusion terms are present (should NOT be present)
+      const excludesMatch = excludeTerms.every(term => !searchableText.includes(term));
+
+      return includesMatch && excludesMatch;
     },
     debugTable: false,
     debugHeaders: false,
@@ -552,7 +588,7 @@ export default function MarketsTable() {
             type="text"
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search markets..."
+            placeholder="Search markets... (use ! to exclude, e.g. !sports)"
             className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded w-96 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:text-gray-200"
           />
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -584,11 +620,12 @@ export default function MarketsTable() {
           <div className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700">
             {table.getHeaderGroups().map((headerGroup) => (
               <div key={headerGroup.id} className="flex">
-                <div className="px-2 py-1.5 flex-shrink-0" style={{ width: '50px' }}></div>
+                <div className="px-2 py-1.5 flex-shrink-0 bg-gray-50 dark:bg-gray-800" style={{ width: '50px' }}></div>
                 {headerGroup.headers.map((header) => {
                   const align = (header.column.columnDef.meta as { align?: string })?.align;
                   const colId = header.column.id;
                   const width = colId === 'question' ? '400px'
+                    : colId === 'tags' ? '300px'
                     : colId === 'lastTradePrice' ? '80px'
                     : colId === 'bestBid' ? '80px'
                     : colId === 'bestAsk' ? '80px'
@@ -603,7 +640,7 @@ export default function MarketsTable() {
                   return (
                     <div
                       key={header.id}
-                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center flex-shrink-0 ${
+                      className={`px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center flex-shrink-0 bg-gray-50 dark:bg-gray-800 ${
                         align === 'right' ? 'justify-end' : ''
                       }`}
                       style={{ width }}
@@ -637,7 +674,7 @@ export default function MarketsTable() {
               return (
                 <div
                   key={row.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex"
+                  className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex bg-white dark:bg-gray-900"
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -646,7 +683,7 @@ export default function MarketsTable() {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <div className="px-2 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0" style={{ width: '50px' }}>
+                  <div className="px-2 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0 bg-white dark:bg-gray-900" style={{ width: '50px' }}>
                     {hasOrderBook && (
                       <button
                         onClick={() => openOrderbook(market.id, market.clobTokenIds)}
@@ -663,6 +700,7 @@ export default function MarketsTable() {
                   {row.getVisibleCells().map((cell) => {
                     const colId = cell.column.id;
                     const width = colId === 'question' ? '400px'
+                      : colId === 'tags' ? '300px'
                       : colId === 'lastTradePrice' ? '80px'
                       : colId === 'bestBid' ? '80px'
                       : colId === 'bestAsk' ? '80px'
@@ -674,10 +712,11 @@ export default function MarketsTable() {
                       : colId === 'conditionId' ? '100px'
                       : colId === 'id' ? '60px'
                       : '100px';
+                    const isNumericColumn = ['lastTradePrice', 'bestBid', 'bestAsk', 'spread', 'oneDayPriceChange', 'volume', 'volume24hr', 'liquidity', 'id'].includes(colId);
                     return (
                       <div
                         key={cell.id}
-                        className="px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0"
+                        className={`px-3 py-1.5 text-xs text-gray-900 dark:text-gray-200 flex items-center flex-shrink-0 bg-white dark:bg-gray-900 ${isNumericColumn ? 'justify-end' : ''}`}
                         style={{ width }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
