@@ -34,6 +34,7 @@ interface PolymarketMarket {
   liquidityClob: number;
   oneDayPriceChange: number;
   tags?: Tag[];
+  startDate?: string;
   [key: string]: unknown;
 }
 
@@ -336,6 +337,7 @@ export default function MarketsTable() {
             ...market,
             eventSlug: event.slug,
             tags: event.tags,
+            startDate: event.startDate,
           } as PolymarketMarket);
         }
       }
@@ -500,6 +502,17 @@ export default function MarketsTable() {
         sortingFn: 'alphanumeric',
       },
       {
+        accessorKey: 'startDate',
+        header: 'Start Date',
+        cell: (info) => {
+          const value = info.getValue() as string;
+          if (!value) return <span className="text-gray-400 dark:text-gray-600">-</span>;
+          const date = new Date(value);
+          return date.toLocaleString();
+        },
+        sortingFn: 'datetime',
+      },
+      {
         accessorKey: 'id',
         header: 'ID',
         cell: (info) => <div className="text-right">{info.getValue() as string}</div>,
@@ -654,6 +667,7 @@ export default function MarketsTable() {
                     : colId === 'volume24hr' ? '120px'
                     : colId === 'liquidity' ? '120px'
                     : colId === 'conditionId' ? '100px'
+                    : colId === 'startDate' ? '160px'
                     : colId === 'id' ? '60px'
                     : '100px';
                   return (
@@ -729,6 +743,7 @@ export default function MarketsTable() {
                       : colId === 'volume24hr' ? '120px'
                       : colId === 'liquidity' ? '120px'
                       : colId === 'conditionId' ? '100px'
+                      : colId === 'startDate' ? '160px'
                       : colId === 'id' ? '60px'
                       : '100px';
                     const isNumericColumn = ['lastTradePrice', 'bestBid', 'bestAsk', 'spread', 'oneDayPriceChange', 'volume', 'volume24hr', 'liquidity', 'id'].includes(colId);

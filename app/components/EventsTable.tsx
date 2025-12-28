@@ -191,10 +191,23 @@ export default function EventsTable() {
         },
       },
       {
+        accessorKey: 'startDate',
+        header: 'Start Date',
+        cell: (info) => {
+          const value = info.getValue() as string;
+          if (!value) return <span className="text-gray-400 dark:text-gray-600">-</span>;
+          const date = new Date(value);
+          return date.toLocaleString();
+        },
+        sortingFn: 'datetime',
+      },
+      {
         accessorKey: 'endDate',
         header: 'End Date',
         cell: (info) => {
-          const date = new Date(info.getValue() as string);
+          const value = info.getValue() as string;
+          if (!value) return <span className="text-gray-400 dark:text-gray-600">-</span>;
+          const date = new Date(value);
           return date.toLocaleString();
         },
         sortingFn: 'datetime',

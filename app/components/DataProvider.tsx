@@ -21,6 +21,7 @@ export interface PolymarketEvent {
   description: string;
   slug: string;
   ticker: string;
+  startDate: string;
   endDate: string;
   markets: Market[];
   volume: number;
